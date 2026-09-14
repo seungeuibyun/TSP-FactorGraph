@@ -124,6 +124,8 @@ def _online_arguments(args: argparse.Namespace, seed: int,
         values.append("--vehicle-gauss-seidel")
     if args.certified_route_messages:
         values.append("--certified-route-messages")
+    if args.global_assignment_trajectory:
+        values.append("--global-assignment-trajectory")
     if args.initial_plan_cache is not None:
         values.extend(["--initial-plan-cache", str(args.initial_plan_cache)])
     return build_online_parser().parse_args(values)
@@ -583,6 +585,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_false")
     parser.add_argument("--vehicle-gauss-seidel", action="store_true")
     parser.add_argument("--certified-route-messages", action="store_true")
+    parser.add_argument("--global-assignment-trajectory", action="store_true")
     parser.add_argument(
         "--replan-acceptance-tolerance-kwh", type=float, default=1e-6)
     parser.add_argument("--initial-plan-cache", type=Path)

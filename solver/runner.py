@@ -48,6 +48,7 @@ def _result_record(result, *, n_bins: int, vehicles: int,
         "feasible": evaluation.feasible,
         "exact_global_factor_graph": getattr(
             result, "exact_global_factor_graph", None),
+        "route_message_mode": getattr(result, "route_message_mode", None),
         "rounds": getattr(result, "rounds", None),
         "converged": getattr(result, "converged", None),
     }
@@ -83,6 +84,8 @@ def run(args: argparse.Namespace) -> pd.DataFrame:
                     symmetry_dual_path=args.symmetry_dual_path,
                     vehicle_gauss_seidel=args.vehicle_gauss_seidel,
                     certified_route_messages=args.certified_route_messages,
+                    global_assignment_trajectory=(
+                        args.global_assignment_trajectory),
                 )
                 result = solve_proposed(instance, config)
             elif method == "nn":
@@ -177,6 +180,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_false")
     parser.add_argument("--vehicle-gauss-seidel", action="store_true")
     parser.add_argument("--certified-route-messages", action="store_true")
+    parser.add_argument("--global-assignment-trajectory", action="store_true")
     parser.add_argument("--ga-population", type=int, default=100)
     parser.add_argument("--ga-generations", type=int, default=500)
     parser.add_argument("--pso-particles", type=int, default=60)

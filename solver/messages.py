@@ -30,21 +30,54 @@ def _frontier(weights: np.ndarray, prizes: np.ndarray,
     frontier_w = np.array([0.0])
     frontier_v = np.array([0.0])
     for weight, prize in zip(weights, prizes):
-        if prize <= EPS or weight > capacity + EPS:
-            continue
-        candidate_w = np.r_[frontier_w, frontier_w + weight]
-        candidate_v = np.r_[frontier_v, frontier_v + prize]
-        keep = candidate_w <= capacity + EPS
-        candidate_w = candidate_w[keep]
-        candidate_v = candidate_v[keep]
-        order = np.lexsort((-candidate_v, candidate_w))
-        candidate_w = candidate_w[order]
-        candidate_v = candidate_v[order]
-        running = np.maximum.accumulate(candidate_v)
-        nondominated = candidate_v > np.r_[-np.inf, running[:-1]] + EPS
-        frontier_w = candidate_w[nondominated]
-        frontier_v = candidate_v[nondominated]
+        frontier_w, frontier_v = _extend_frontier(
+            (frontier_w, frontier_v), float(weight), float(prize), capacity)
     return frontier_w, frontier_v
+
+
+def _extend_frontier(
+    frontier: tuple[np.ndarray, np.ndarray],
+    weight: float,
+    prize: float,
+    capacity: float,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Add one optional item to an exact Nemhauser--Ullmann frontier."""
+
+    frontier_w, frontier_v = frontier
+    if prize <= EPS or weight > capacity + EPS:
+        return frontier_w, frontier_v
+    candidate_w = np.r_[frontier_w, frontier_w + weight]
+    candidate_v = np.r_[frontier_v, frontier_v + prize]
+    keep = candidate_w <= capacity + EPS
+    candidate_w = candidate_w[keep]
+    candidate_v = candidate_v[keep]
+    order = np.lexsort((-candidate_v, candidate_w))
+    candidate_w = candidate_w[order]
+    candidate_v = candidate_v[order]
+    running = np.maximum.accumulate(candidate_v)
+    nondominated = candidate_v > np.r_[-np.inf, running[:-1]] + EPS
+    return candidate_w[nondominated], candidate_v[nondominated]
+
+
+def _convolved_value_at(
+    left: tuple[np.ndarray, np.ndarray],
+    right: tuple[np.ndarray, np.ndarray],
+    capacity: float,
+) -> float:
+    """Query the exact union of two disjoint Pareto frontiers."""
+
+    if capacity < -EPS:
+        return -np.inf
+    left_w, left_v = left
+    right_w, right_v = right
+    remaining = capacity - left_w
+    right_indices = np.searchsorted(
+        right_w, remaining, side="right") - 1
+    feasible = right_indices >= 0
+    if not np.any(feasible):
+        return -np.inf
+    values = left_v[feasible] + right_v[right_indices[feasible]]
+    return float(np.max(values))
 
 
 def _value_at(frontier: tuple[np.ndarray, np.ndarray], capacity: float) -> float:
@@ -212,29 +245,50 @@ def capacity_messages(weights: np.ndarray, gamma: np.ndarray,
     for vehicle in range(vehicles):
         choices = np.flatnonzero(eligible[:, vehicle])
         capacity = float(remaining_capacity[vehicle])
-        prizes = np.maximum(0.0, gamma[choices, vehicle])
-        positive_choices = choices[prizes > EPS]
-        base = _frontier(
-            weights[positive_choices], gamma[positive_choices, vehicle], capacity)
-        for i in choices:
-            other_choices = choices[choices != i]
-            if i in positive_choices:
-                without_positive = positive_choices[positive_choices != i]
-                frontier = _frontier(
-                    weights[without_positive],
-                    gamma[without_positive, vehicle], capacity)
-            else:
-                frontier = base
+        count = len(choices)
+
+        # P_k^{-i} is a leave-one-out query on the same incoming messages.
+        # Prefix and suffix frontiers construct every disjoint side once;
+        # querying their max-plus convolution is exact and avoids rebuilding
+        # an O(N) knapsack frontier independently for every edge.
+        empty = (np.asarray([0.0]), np.asarray([0.0]))
+        prefix: list[tuple[np.ndarray, np.ndarray]] = [empty]
+        for index in choices:
+            prefix.append(_extend_frontier(
+                prefix[-1], float(weights[index]),
+                float(gamma[index, vehicle]), capacity))
+        suffix: list[tuple[np.ndarray, np.ndarray]] = [empty] * (count + 1)
+        suffix[count] = empty
+        for position in range(count - 1, -1, -1):
+            index = int(choices[position])
+            suffix[position] = _extend_frontier(
+                suffix[position + 1], float(weights[index]),
+                float(gamma[index, vehicle]), capacity)
+
+        feasible_singletons = [
+            int(index) for index in choices
+            if weights[index] <= capacity + EPS]
+        singleton_order = sorted(
+            feasible_singletons,
+            key=lambda index: (-float(gamma[index, vehicle]), index))
+
+        for position, raw_i in enumerate(choices):
+            i = int(raw_i)
+            left, right = prefix[position], suffix[position + 1]
             value_one = (
-                _value_at(frontier, capacity - weights[i])
+                _convolved_value_at(
+                    left, right, capacity - float(weights[i]))
                 if weights[i] <= capacity + EPS else -np.inf)
-            value_zero = (
-                _nonempty_value_at(
-                    weights[other_choices], gamma[other_choices, vehicle],
-                    capacity)
-                if required[vehicle]
-                else _value_at(frontier, capacity)
-            )
+            optional_zero = _convolved_value_at(
+                left, right, capacity)
+            if required[vehicle] and optional_zero <= EPS:
+                best_singleton = next(
+                    (index for index in singleton_order if index != i), None)
+                value_zero = (
+                    -np.inf if best_singleton is None
+                    else float(gamma[best_singleton, vehicle]))
+            else:
+                value_zero = optional_zero
             if np.isneginf(value_one) and np.isneginf(value_zero):
                 raise ValueError(
                     f"vehicle {vehicle} cannot receive any eligible bin "

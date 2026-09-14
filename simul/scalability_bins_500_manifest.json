@@ -1,0 +1,12 @@
+{
+  "maximum_bins": 500,
+  "measured_bins": 84,
+  "synthetic_bins": 416,
+  "seed": 2026,
+  "nested_prefix_rule": "every N-bin instance uses the first N rows of the same file",
+  "synthetic_sampling": "uniform seeded permutation of operational edges, retaining one unique destination node per bin and exact depot round-trip reachability",
+  "network": "simul/seongbuk_buffer_elevation.net.xml",
+  "traffic": "simul/sumo_hourly_cost_operational_v3.csv",
+  "measured_source": "simul/seongbuk_bins_84.csv",
+  "output": "simul/scalability_bins_500.csv"
+}

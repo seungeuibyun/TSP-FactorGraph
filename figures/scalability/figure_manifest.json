@@ -1,0 +1,39 @@
+{
+  "source": "results/scalability/scalability_runs.csv",
+  "observations": 690,
+  "completed_sizes": [
+    84,
+    100,
+    120,
+    140,
+    160,
+    180,
+    200,
+    220,
+    240,
+    260,
+    280,
+    300,
+    350,
+    400,
+    450,
+    500
+  ],
+  "methods": [
+    "proposed",
+    "nn",
+    "aco",
+    "pso",
+    "ga"
+  ],
+  "runtime_metric": "oracle_prep_s + solver runtime_s",
+  "runtime_axis": "logarithmic",
+  "runtime_cloud": "mean plus or minus one sample standard deviation",
+  "energy_metric": "fleet energy divided by N",
+  "energy_cloud": "mean plus or minus one sample standard deviation",
+  "formats": [
+    "PDF",
+    "EPS",
+    "PNG"
+  ]
+}

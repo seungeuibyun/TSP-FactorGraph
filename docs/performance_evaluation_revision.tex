@@ -1,0 +1,347 @@
+\section{Performance Evaluation}
+\label{sec:evaluation}
+
+This section evaluates the proposed cooperative assignment-and-routing
+framework in an electric waste-collection digital twin constructed from a
+real urban road network. The experiments address four questions: (i) whether
+the proposed method consistently reduces operating energy under the hourly
+traffic conditions of the service area, (ii) how the exact number of active
+vehicles changes energy consumption and completion time, (iii) whether
+replanning is beneficial when localized traffic disruptions evolve during
+operation, and (iv) whether the solution quality is retained as the number of
+service bins increases.
+
+\begin{table}[t]
+    \centering
+    \caption{Simulation Parameters}
+    \small
+    \setlength{\tabcolsep}{2pt}
+    \renewcommand{\arraystretch}{1.1}
+    \begin{tabular}{lr}
+    \toprule
+    \textbf{Parameter} & \textbf{Value / Description} \\
+    \midrule
+    Number of smart bins, $N$ & $84$ \\
+    Scalability values of $N$ & $84,100,\ldots,500$ \\
+    Baseline road network & OpenStreetMap/SUMO \\
+    Time-dependent traffic & Hourly SUMO/TOPIS travel times \\
+    Number of vehicles, $K$ & $10$, $\{6,\ldots,14\}$ for sweep \\
+    Scalability fleet size & approximately $N/8.4$ \\
+    Curb mass, $m_0$ & 7,000~kg \\
+    Payload capacity, $Q$ & 2,000~kg \\
+    Maximum battery capacity, $B_{\max}$ & 180~kWh \\
+    Minimum battery reserve, $B_{\min}$ & 15~kWh \\
+    Node weight, $w_i$ & $\mathcal{U}(50,250)$~kg \\
+    Rolling coefficient, $C_{\mathrm{rr}}$ & 0.010 \\
+    Drag coefficient, $C_{\mathrm{d}}$ & 0.60 \\
+    Frontal area, $A_{\mathrm{f}}$ & 5.5~$\mathrm{m}^2$ \\
+    Air density, $\rho$ & 1.225~$\mathrm{kg/m^3}$ \\
+    Propulsion efficiency, $\eta_{\mathrm{drv}}$ & 0.90 \\
+    Regenerative efficiency, $\eta_{\mathrm{reg}}$ & 0.60 \\
+    En-route auxiliary power, $P_{\mathrm{aux}}$ & 3~kW \\
+    Stop-and-go threshold, $\Delta T$ & $0.25T^{\mathrm{ff}}$ \\
+    Stop-and-go coefficient, $\kappa_{\mathrm{sg}}$ &
+        $4.93\times10^{-6}$~kWh/kg \\
+    Service time per bin, $T_s$ & 120~s/bin \\
+    Stationary auxiliary power, $P_{\mathrm{svc}}$ & 2~kW \\
+    Lifting/compaction energy, $e_i^{\mathrm{lc}}$ & 0.12~kWh/bin \\
+    Payload state interval, $\Delta\ell$ & 100~kg \\
+    \bottomrule
+    \end{tabular}
+    \label{tab:parameters}
+\end{table}
+
+\subsection{Simulation setup}
+
+The simulation parameters are summarized in Table~\ref{tab:parameters}. The
+evaluation uses the Seongbuk-gu road network in Seoul. The network is
+generated from OpenStreetMap, represented as a directed SUMO graph, and
+augmented with road grade and hourly link travel time. The base instance
+contains $N=84$ measured waste-bin locations. For every transition, all
+methods use the same load-, grade-, speed-, and time-dependent energy model in
+Section~II, including auxiliary, stop-and-go, service, and
+lifting/compaction energy. Therefore, the reported energy is battery energy
+rather than distance or a surrogate routing cost.
+
+Unless otherwise stated, the base experiments use $K=10$ vehicles and demand
+seed 7. Every returned plan must service every bin exactly once, respect the
+2,000~kg vehicle capacity and 15~kWh battery reserve, return every vehicle to
+the depot, and assign at least one bin to each of the exactly $K$ active
+vehicles. Infeasible solutions are not assigned a finite objective value.
+
+The proposed method is compared with a state-aware nearest-neighbor method
+(NN), ant-colony optimization (ACO), particle-swarm optimization (PSO), and a
+genetic algorithm (GA). ACO uses 60 ants and 150 iterations, PSO uses 60
+particles and 200 iterations, and GA uses a population of 100 and 500
+generations. Their candidate permutations are decoded into exactly $K$
+nonempty, capacity- and battery-feasible routes by the same dynamic-programming
+split procedure. Thus, the comparison changes the search method while keeping
+the physical evaluator and feasibility rules fixed. The MILP implementation
+is retained for small-instance correctness tests, but is not used as an
+operational-size baseline. If the loopy message updates do not satisfy the
+strict residual test within the prescribed round budget, the best feasible
+incumbent is reported; consequently, the experiments do not claim global
+optimality.
+
+\subsection{Hourly traffic and route comparison}
+
+\begin{figure}[!t]
+    \centering
+    \subfloat[Proposed: 164.679~kWh]{
+        \includegraphics[width=0.78\columnwidth]{figures/exp1_kmedoids}
+    }
+
+    \vspace{0.2cm}
+    \subfloat[ACO: 172.225~kWh]{
+        \includegraphics[width=0.78\columnwidth]{figures/exp1_ap}
+    }
+
+    \vspace{0.2cm}
+    \subfloat[GA: 188.522~kWh]{
+        \includegraphics[width=0.78\columnwidth]{figures/exp1_proposed}
+    }
+    \caption{Fleet-route comparison on the same Seongbuk-gu instance at
+    11:00. All methods service the same 84 bins with exactly 10 nonempty and
+    feasible vehicle routes. Colors distinguish vehicle routes, black circles
+    indicate smart bins, and the star indicates the depot.}
+    \label{fig:route-comparison}
+\end{figure}
+
+The first experiment fixes the bin demands and evaluates all methods for the
+24 traffic snapshots from 00:00 to 23:00. Figure~\ref{fig:route-comparison}
+shows the routes obtained at 11:00 by the proposed method and the two strongest
+stochastic baselines in this snapshot. The proposed method uses 7.547~kWh less
+than ACO and 23.843~kWh less than GA. Its 3,261.6~s makespan is nevertheless
+longer than the 2,809.1~s and 2,806.8~s obtained by ACO and GA, respectively.
+This example illustrates that the optimized objective is fleet energy, not
+makespan, and that the two metrics need not rank route sets identically.
+
+\begin{figure}[!t]
+    \centering
+    \subfloat[Fleet energy consumption]{
+        \centering
+        \includegraphics[width=0.95\columnwidth]{figures/hourly_energy_ieee.pdf}
+    }
+
+    \subfloat[Mean active-vehicle completion time]{
+        \centering
+        \includegraphics[width=0.95\columnwidth]{figures/hourly_vehicle_completion_time_ieee.pdf}
+    }
+    \caption{Performance over the 24 hourly traffic snapshots provided
+    by~\cite{seoul2026}. The demand realization and fleet size are fixed across
+    all hours and methods.}
+    \label{fig:hour-sweep}
+\end{figure}
+
+As shown in Fig.~\ref{fig:hour-sweep}, the proposed method has the lowest
+energy in all 24 matched hourly comparisons. Its mean energy is 116.893~kWh,
+compared with 121.961~kWh for ACO, 130.857~kWh for GA, 141.951~kWh for PSO,
+and 148.240~kWh for NN. This corresponds to reductions of 4.16\%, 10.67\%,
+17.65\%, and 21.15\%, respectively, when the ratio of the 24-hour means is
+used. Even the smallest hourly margin over ACO is 1.623~kWh.
+
+Although makespan is not included in Fig.~\ref{fig:hour-sweep}, its hourly
+variation provides a complementary measure of operational robustness. ACO's
+makespan increases from 2,809.1~s at 11:00 to 4,126.4~s at 12:00, a 46.9\%
+increase in one hour, while PSO increases from 2,818.4~s at 20:00 to
+4,062.7~s at 21:00, corresponding to 44.2\%. GA also reaches 3,519.9~s at
+14:00 after recording 2,977.5~s at 13:00. The proposed method does not exhibit
+these 3,500--4,000~s excursions: its makespan remains between 2,500.4 and
+3,261.6~s over all 24 snapshots. Its temporal standard deviation is also the
+smallest, at 192.5~s, compared with 413.7~s for ACO, 326.9~s for PSO,
+258.9~s for GA, and 200.9~s for NN. This reduced sensitivity of the longest
+route indicates that the cooperative exchange between assignment and routing
+also limits severe route imbalance under changing traffic, even though
+makespan is not the optimized objective.
+
+This distinction is important because minimizing fleet energy does not imply
+minimum makespan at every hour; for example, GA has a slightly lower
+24-hour mean makespan than the proposed method. Nevertheless, when completion
+time is averaged over the active vehicles rather than determined only by the
+single longest route, the proposed method requires 1,631.8~s per vehicle,
+compared with 1,679.2~s for ACO, 1,743.5~s for GA, 1,817.2~s for PSO, and
+1,864.0~s for NN. Thus, although the primary objective is energy consumption,
+the resulting assignments and routes also reduce the average time required by
+an individual vehicle. The proposed energy itself ranges from 78.198~kWh at
+04:00 to 168.065~kWh at 12:00. Its nonmonotonic hourly pattern reflects the
+spatial distribution of link-specific congestion and the stop-and-go term,
+which cannot be explained by a single network-wide average speed.
+
+\subsection{Online adaptation to localized disruptions}
+
+The second experiment begins at 18:00 and uses ten paired traffic seeds. For
+each seed, approximately 5\% of the bins are selected as fixed disruption
+centers. Traffic remains normal for 10~min; speeds on edges within a 500~m
+road-distance radius then decrease linearly from 100\% to 35\% over 10~min,
+remain at 35\% for 10~min, and recover linearly over 25~min. Every method
+observes the same trace and may replan every 5~min.
+
+Three policies are distinguished. Frozen static retains both the initial bin
+order and its precomputed edge paths. Live-navigation static retains the
+initial bin order but follows minimum-energy paths under the evolving traffic.
+Adaptive additionally reoptimizes the remaining bin assignments and orders.
+Vehicles continue moving while planning is performed, so planning time is not
+converted into stationary energy or operating delay; it is measured
+separately. An adaptive candidate is accepted only if exact evaluation under
+the currently observed traffic snapshot gives lower residual energy than the
+incumbent. No traffic forecast is supplied.
+
+\begin{figure}[!t]
+    \centering
+    \subfloat[Final operating energy]{
+        \centering
+        \includegraphics[width=0.95\columnwidth]{figures/online_final_energy_bar_ieee.pdf}
+    }
+
+    \subfloat[Snapshot-estimated total energy]{
+        \centering
+        \includegraphics[width=0.95\columnwidth]
+        {figures/online_snapshot_total_energy_ieee.pdf}
+    }
+
+    \subfloat[Performance table\label{tab:disruption}]{
+    \centering
+    \footnotesize
+    \setlength{\tabcolsep}{2.5pt}
+    \begin{tabular}{lcccc}
+        \toprule
+        \multirow{2}{*}{\textbf{Method}} & \multicolumn{2}{c}{\textbf{Operational energy (kWh)}} & \textbf{Saving} & \textbf{Replanning}\\
+        \cmidrule(lr){2-3}
+        & \textbf{Frozen} & \textbf{Adaptive} & \textbf{(\%)} & \textbf{latency (min.)}\\
+        \midrule
+        GA & 190.50 ($\pm$14.43) & 184.70 ($\pm$13.69) & 3.0 & 44.07 ($\pm$3.65)\\
+        PSO & 220.30 ($\pm$22.02) & 180.04 ($\pm$14.27) & 18.3 & 32.10 ($\pm$1.56)\\
+        ACO & 171.97 ($\pm$8.76) & 159.20 ($\pm$7.24) & 7.4 & 10.91 ($\pm$0.60)\\
+        NN & 238.05 ($\pm$25.04) & 196.91 ($\pm$18.35) & 17.3 & 0.89 ($\pm$0.15) \\
+        Proposed & 168.87 ($\pm$14.33) & 158.31 ($\pm$9.92) & 6.3 & 9.76 ($\pm$0.73)\\
+        \bottomrule
+    \end{tabular}
+    }
+    \caption{Online coordination performance under localized road disruptions.}
+    \label{fig:online_disruption}
+\end{figure}
+
+Figure~\ref{fig:online_disruption} and Table~\ref{tab:disruption} show that
+the proposed adaptive method has the lowest mean final energy, 158.313~kWh.
+It is 0.885~kWh below adaptive ACO and 21.725--38.597~kWh below adaptive PSO,
+GA, and NN. Relative to its own frozen-static execution, proposed replanning
+saves 10.555~kWh (6.04\%) and wins in all ten paired seeds. Its cumulative
+post-departure replanning time is 9.76~min, lower than ACO, PSO, and GA but
+higher than NN.
+
+Adaptive planning is not uniformly better than live-navigation static. For
+the proposed method, adaptive execution is 0.362~kWh higher on average and
+wins in six of ten seeds; GA shows a larger degradation. This does not
+contradict the acceptance test, which compares residual plans only under the
+current snapshot. A route accepted during degradation may lose its apparent
+advantage as traffic subsequently recovers. Thus, the experiment supports
+adaptive assignment under unanticipated path disruption, but also identifies
+the limitation of myopic replanning without adding a traffic-forecast model.
+
+\subsection{Effect of the exact number of active vehicles}
+
+\begin{figure}[!t]
+    \centering
+    \subfloat[Normalized energy gap]{
+        \centering
+        \includegraphics[width=0.95\columnwidth]{figures/k_sweep_normalized_energy_ieee.pdf}
+    }
+
+    \subfloat[Normalized makespan gap]{
+        \centering
+        \includegraphics[width=0.95\columnwidth]{figures/k_sweep_normalized_makespan_ieee.pdf}
+    }
+    \caption{Exact-$K$ sweep at 04:00, 11:00, and 19:00 with $N=84$ and
+    11,700~kg total demand. Each line is the three-hour mean gap to the best
+    method-and-$K$ value within the same hour, and each shaded region spans the
+    minimum and maximum over the three hours.}
+    \label{fig:k-sweep}
+\end{figure}
+
+The third experiment varies the exact number of active vehicles from 6 to 14.
+The total demand is fixed at 11,700~kg, so six vehicles provide only 300~kg of
+aggregate spare capacity, whereas larger fleets introduce additional
+depot-to-service and return legs. For a metric $z$, Fig.~\ref{fig:k-sweep}
+reports
+\begin{align}
+g_{m,K,h}=100\left(
+\frac{z_{m,K,h}}{\min_{m',K'}z_{m',K',h}}-1\right),
+\label{eq:k-sweep-normalization}
+\end{align}
+followed by the mean and range of $g_{m,K,h}$ over the three evaluated hours.
+
+The proposed method consumes less energy than every baseline in all 27
+matched hour-and-$K$ cases. Averaged over these cases, it reduces energy by
+5.55\% relative to ACO, 10.62\% relative to GA, 18.65\% relative to PSO, and
+22.30\% relative to NN. Its three-hour mean energy is minimized at $K=6$
+(107.100~kWh); the individual-hour minima occur at $K=7$ for 04:00 and at
+$K=6$ for 11:00 and 19:00. Energy then generally increases as more vehicles
+repeat fixed depot-access and return overhead.
+
+The completion-time result exhibits a different optimum. The proposed
+method's lowest three-hour mean makespan is 2,940.0~s at $K=9$, rather than at
+its energy-optimal $K=6$. Moreover, makespan is not monotone in $K$, because
+adding a vehicle changes both the assignment and the longest route. The
+experiment therefore identifies an operational tradeoff instead of imposing
+a convex fleet-size curve: a smaller feasible fleet minimizes energy in this
+instance, whereas a moderately larger fleet improves completion time.
+
+\subsection{Scalability with the service-network size}
+
+\begin{figure}[!t]
+    \centering
+    \subfloat[Energy per serviced bin]{
+        \centering
+        \includegraphics[width=0.95\columnwidth]{figures/scalability_energy_per_bin_ieee.pdf}
+    }
+
+    \subfloat[Makespan]{
+        \centering
+        \includegraphics[width=0.95\columnwidth]{figures/scalability_makespan_ieee.pdf}
+    }
+    \caption{Scalability with nested service-node sets and approximately 8.4
+    bins per vehicle. Lines show seed means and shaded regions show one sample
+    standard deviation.}
+    \label{fig:scalability-test}
+\end{figure}
+
+The final experiment, summarized in Fig.~\ref{fig:scalability-test}, uses nested instances
+$N\in\{84,100,120,\ldots,300,350,400,450,500\}$.
+The fleet size is adjusted to keep approximately 8.4 serviced bins per
+vehicle, so increasing $N$ enlarges the number of coupled assignment edges
+while keeping the typical vehicle-level trellis size comparable. The demand
+seed changes both the waste realization and the randomized stochastic search,
+whereas the measured 84-bin locations remain fixed and the additional bins
+are drawn once from a seeded nested set of feasible SUMO road locations.
+
+For the ten-seed portion currently complete through $N=300$, every method
+returns feasible solutions. The proposed method has the lowest mean energy per
+bin at all 12 completed sizes. Its value changes from
+$1.963\pm0.039$~kWh/bin at $N=84$ to $1.995\pm0.042$~kWh/bin at $N=300$ and
+remains between 1.936 and 2.020~kWh/bin over the completed range. Averaged
+over the 12 sizes, the corresponding reduction is 2.85\% relative to ACO,
+10.73\% relative to GA, 14.80\% relative to PSO, and 16.80\% relative to NN.
+The stable normalized energy indicates that total fleet energy grows mainly
+with the amount of serviced work rather than through a degradation of
+per-bin solution quality.
+
+The makespan curve is less regular because it is determined by the single
+longest vehicle route and is not the optimized objective. For the proposed
+method, the mean makespan is 3,371.0~s at $N=84$ and 4,284.2~s at $N=300$,
+with intermediate changes caused by the road geometry, demand realization,
+and discrete fleet-size adjustment. Runtime is retained in the result files
+for reproducibility, but is not used as a primary figure because it combines
+hardware-dependent solver time with cost-oracle preparation; the analytical
+growth of the assignment and trellis updates is discussed separately in the
+complexity analysis.
+
+Together with the hourly and fleet-size experiments, this scaling behavior
+shows that the assignment--trellis cooperation improves energy efficiency
+without sacrificing feasibility or producing the pronounced longest-route
+delays observed in several baselines. The online results further show that the
+same coordination can adapt assignments after an unanticipated disruption,
+while the comparison with live navigation clarifies that this benefit depends
+on the information available at the replanning epoch. The proposed framework
+therefore combines lower fleet energy, stable vehicle-level workload, and
+adaptive operation within the same message-passing structure rather than
+treating these observations as separate design objectives.

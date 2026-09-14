@@ -43,5 +43,7 @@
     "PNG"
   ],
   "figure_width_in": 3.5,
+  "legend": "boxed upper-left inside a reserved data-free y-axis band",
+  "vehicle_time_figure": "mean active-vehicle completion time",
   "raster_dpi": 600
 }

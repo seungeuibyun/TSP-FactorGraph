@@ -24,9 +24,17 @@
     "pso",
     "ga"
   ],
+  "primary_figures": [
+    "k_sweep_normalized_energy_ieee",
+    "k_sweep_normalized_makespan_ieee"
+  ],
+  "normalization": "100 * (metric / minimum metric over all methods and K within the same hour - 1), independently for energy and makespan",
+  "normalized_line": "arithmetic mean across the three hours",
+  "normalized_cloud": "minimum-to-maximum across the three hours",
+  "layout": "one normalized primary graph plus single-hour supplementary graphs",
+  "legend": "boxed upper-left inside a reserved data-free y-axis band",
   "formats": [
     "PDF",
-    "EPS",
     "PNG"
   ]
 }

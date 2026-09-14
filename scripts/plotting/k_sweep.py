@@ -1,4 +1,4 @@
-"""Create IEEE-style three-hour exact-K comparison figures."""
+"""Create one IEEE-style exact-K comparison graph per figure file."""
 
 from __future__ import annotations
 
@@ -19,8 +19,8 @@ from .ieee import (
 )
 
 
-DEFAULT_HOURS = (4, 19, 11)
-DEFAULT_VEHICLES = tuple(range(7, 15))
+DEFAULT_HOURS = (4, 11, 19)
+DEFAULT_VEHICLES = tuple(range(6, 15))
 METRICS = {
     "energy": ("energy_kwh", "Energy consumption (kWh)"),
     "battery_remaining": (
@@ -72,7 +72,7 @@ def _validated_frame(
 
 def _save(fig: plt.Figure, stem: Path) -> list[Path]:
     outputs = []
-    for suffix in ("pdf", "eps", "png"):
+    for suffix in ("pdf", "png"):
         path = stem.with_suffix(f".{suffix}")
         fig.savefig(path, bbox_inches="tight", pad_inches=0.02)
         outputs.append(path)
@@ -80,51 +80,134 @@ def _save(fig: plt.Figure, stem: Path) -> list[Path]:
     return outputs
 
 
-def _draw_metric(
+def _boxed_legend(axis: plt.Axes):
+    legend = axis.legend(
+        ncol=2, loc="upper left", frameon=True, fancybox=False,
+        facecolor="white", edgecolor="0.15", framealpha=1.0,
+        borderpad=0.45, handlelength=2.2, columnspacing=0.9,
+    )
+    legend.get_frame().set_linewidth(0.7)
+    return legend
+
+
+def _fit_legend_band(axis: plt.Axes, legend, data_upper: float) -> None:
+    """Leave only a narrow data-free gap directly below the legend."""
+
+    lower = axis.get_ylim()[0]
+    for _ in range(2):
+        axis.figure.canvas.draw()
+        renderer = axis.figure.canvas.get_renderer()
+        axes_box = axis.get_window_extent(renderer)
+        legend_box = legend.get_window_extent(renderer)
+        legend_bottom = (legend_box.y0 - axes_box.y0) / axes_box.height
+        data_ceiling = legend_bottom - 0.025
+        if data_ceiling <= 0.0:
+            raise ValueError("legend leaves no usable plotting area")
+        axis.set_ylim(
+            lower, lower + (float(data_upper) - lower) / data_ceiling)
+
+
+def _cloud_color(color: str) -> tuple[float, float, float]:
+    rgb = matplotlib.colors.to_rgb(color)
+    return tuple(component + (1.0 - component) * 0.84 for component in rgb)
+
+
+def _normalized_metric_summary(
     frame: pd.DataFrame,
     column: str,
-    ylabel: str,
+) -> pd.DataFrame:
+    normalized = frame[[
+        "method", "start_hour", "vehicles", column
+    ]].copy()
+    hourly_reference = normalized.groupby(
+        "start_hour")[column].transform("min")
+    normalized["normalized_gap_pct"] = 100.0 * (
+        normalized[column] / hourly_reference - 1.0)
+    return (normalized.groupby(["method", "vehicles"], as_index=False)
+            .agg(
+                hours=("start_hour", "count"),
+                normalized_gap_mean_pct=(
+                    "normalized_gap_pct", "mean"),
+                normalized_gap_min_pct=(
+                    "normalized_gap_pct", "min"),
+                normalized_gap_max_pct=(
+                    "normalized_gap_pct", "max"),
+            ))
+
+
+def _draw_normalized_metric(
+    summary: pd.DataFrame,
     stem: Path,
-    hours: tuple[int, ...],
     vehicles: tuple[int, ...],
+    ylabel: str,
 ) -> list[Path]:
-    fig, axes = plt.subplots(
-        1, len(hours), figsize=(7.16, 2.55), sharex=True,
-    )
-    if len(hours) == 1:
-        axes = [axes]
+    fig, axis = plt.subplots(figsize=(3.5, 2.55), constrained_layout=True)
     tick_values = list(vehicles)
     if len(tick_values) > 6:
         tick_values = tick_values[::2]
         if tick_values[-1] != vehicles[-1]:
             tick_values.append(vehicles[-1])
-    for index, (axis, hour) in enumerate(zip(axes, hours)):
-        for method in EXPECTED_METHODS:
-            part = frame[
-                (frame["start_hour"].astype(int) == hour)
-                & (frame["method"] == method)
-            ].sort_values("vehicles")
-            axis.plot(
-                part["vehicles"], part[column],
-                label=METHOD_LABELS[method], markerfacecolor="white",
-                markeredgewidth=0.75, **METHOD_STYLES[method],
-            )
-        axis.set_title(f"{hour:02d}:00")
-        axis.set_xlabel("Exact active vehicles, K")
-        axis.set_xticks(tick_values)
-        axis.grid(True)
-        axis.tick_params(direction="in", top=True, right=True, width=0.6)
-        axis.text(0.03, 0.94, f"({chr(ord('a') + index)})",
-                  transform=axis.transAxes, ha="left", va="top")
-    axes[0].set_ylabel(ylabel)
-    handles, labels = axes[0].get_legend_handles_labels()
-    fig.legend(
-        handles, labels, ncol=5, loc="upper center",
-        bbox_to_anchor=(0.5, 0.995),
-        frameon=False, handlelength=2.2, columnspacing=0.9,
-    )
-    fig.subplots_adjust(
-        left=0.085, right=0.995, bottom=0.205, top=0.735, wspace=0.34)
+    for method in EXPECTED_METHODS:
+        part = summary[summary["method"] == method].sort_values("vehicles")
+        band = axis.fill_between(
+            part["vehicles"],
+            part["normalized_gap_min_pct"],
+            part["normalized_gap_max_pct"],
+            facecolor=_cloud_color(METHOD_STYLES[method]["color"]),
+            edgecolor="none", alpha=0.38, zorder=1,
+        )
+        band.set_rasterized(True)
+        axis.plot(
+            part["vehicles"], part["normalized_gap_mean_pct"],
+            label=METHOD_LABELS[method], markerfacecolor="white",
+            markeredgewidth=0.75, zorder=2.0, **METHOD_STYLES[method],
+        )
+    axis.axhline(0.0, color="0.35", linewidth=0.6, zorder=0.4)
+    axis.set_xlabel("Exact active vehicles, $K$")
+    axis.set_ylabel(ylabel)
+    axis.set_xticks(tick_values)
+    axis.set_ylim(bottom=0.0)
+    axis.grid(True)
+    axis.tick_params(direction="in", top=True, right=True, width=0.6)
+    legend = _boxed_legend(axis)
+    _fit_legend_band(
+        axis, legend, summary["normalized_gap_max_pct"].max())
+    return _save(fig, stem)
+
+
+def _draw_metric(
+    frame: pd.DataFrame,
+    column: str,
+    ylabel: str,
+    stem: Path,
+    hour: int,
+    vehicles: tuple[int, ...],
+) -> list[Path]:
+    fig, axis = plt.subplots(figsize=(3.5, 2.55), constrained_layout=True)
+    tick_values = list(vehicles)
+    if len(tick_values) > 6:
+        tick_values = tick_values[::2]
+        if tick_values[-1] != vehicles[-1]:
+            tick_values.append(vehicles[-1])
+    for method in EXPECTED_METHODS:
+        part = frame[
+            (frame["start_hour"].astype(int) == hour)
+            & (frame["method"] == method)
+        ].sort_values("vehicles")
+        axis.plot(
+            part["vehicles"], part[column],
+            label=METHOD_LABELS[method], markerfacecolor="white",
+            markeredgewidth=0.75, **METHOD_STYLES[method],
+        )
+    axis.set_title(f"{hour:02d}:00")
+    axis.set_xlabel("Exact active vehicles, $K$")
+    axis.set_ylabel(ylabel)
+    axis.set_xticks(tick_values)
+    axis.grid(True)
+    axis.tick_params(direction="in", top=True, right=True, width=0.6)
+    legend = _boxed_legend(axis)
+    _fit_legend_band(axis, legend, frame.loc[
+        frame["start_hour"].astype(int) == hour, column].max())
     return _save(fig, stem)
 
 
@@ -138,10 +221,34 @@ def create_figures(
     frame = _validated_frame(input_csv, hours, vehicles)
     output_dir.mkdir(parents=True, exist_ok=True)
     outputs = []
-    for name, (column, ylabel) in METRICS.items():
-        outputs.extend(_draw_metric(
-            frame, column, ylabel, output_dir / f"k_sweep_3h_{name}_ieee",
-            hours, vehicles))
+    normalized_energy = _normalized_metric_summary(frame, "energy_kwh")
+    normalized_energy.to_csv(
+        input_csv.with_name("k_sweep_normalized_energy_summary.csv"),
+        index=False,
+    )
+    outputs.extend(_draw_normalized_metric(
+        normalized_energy,
+        output_dir / "k_sweep_normalized_energy_ieee",
+        vehicles,
+        "Energy gap to hourly best (%)",
+    ))
+    normalized_makespan = _normalized_metric_summary(frame, "makespan_s")
+    normalized_makespan.to_csv(
+        input_csv.with_name("k_sweep_normalized_makespan_summary.csv"),
+        index=False,
+    )
+    outputs.extend(_draw_normalized_metric(
+        normalized_makespan,
+        output_dir / "k_sweep_normalized_makespan_ieee",
+        vehicles,
+        "Makespan gap to hourly best (%)",
+    ))
+    for hour in hours:
+        for name, (column, ylabel) in METRICS.items():
+            outputs.extend(_draw_metric(
+                frame, column, ylabel,
+                output_dir / f"k_sweep_h{hour:02d}_{name}_ieee",
+                hour, vehicles))
     manifest = {
         "source": input_csv.resolve().relative_to(
             Path(__file__).resolve().parents[2]).as_posix(),
@@ -149,7 +256,20 @@ def create_figures(
         "hours": list(hours),
         "vehicles": list(vehicles),
         "methods": list(EXPECTED_METHODS),
-        "formats": ["PDF", "EPS", "PNG"],
+        "primary_figures": [
+            "k_sweep_normalized_energy_ieee",
+            "k_sweep_normalized_makespan_ieee",
+        ],
+        "normalization": (
+            "100 * (metric / minimum metric over all methods and K within "
+            "the same hour - 1), independently for energy and makespan"),
+        "normalized_line": "arithmetic mean across the three hours",
+        "normalized_cloud": "minimum-to-maximum across the three hours",
+        "layout": (
+            "one normalized primary graph plus single-hour supplementary "
+            "graphs"),
+        "legend": "boxed upper-left inside a reserved data-free y-axis band",
+        "formats": ["PDF", "PNG"],
     }
     (output_dir / "figure_manifest.json").write_text(
         json.dumps(manifest, indent=2), encoding="utf-8")

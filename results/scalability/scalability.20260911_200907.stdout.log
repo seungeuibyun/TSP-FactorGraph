@@ -1,0 +1,55 @@
+RUN C:\Users\guild\.conda\envs\tsp\python.exe -m scripts.scalability --sizes 84 100 120 140 160 180 200 220 240 260 280 300 350 400 450 500 --bins-per-vehicle 8.4 --start-hour 11 --seeds 7 --methods proposed nn aco pso ga --bins-csv C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\simul\scalability_bins_500.csv --output C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\results\scalability\scalability_runs.csv --figure-dir C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\figures\scalability --max-rounds 64 --assignment-rounds 1 --damping 0.7 --tolerance 0.001 --improvement-tolerance 1e-09 --exact-global-limit 14 --maximum-exact-trellis-bins 20 --stagnation-patience 8 --oracle-slots 3 --hypercube-radii 1 2 4 8 12 16 24 32 --no-canonicalize-vehicle-symmetry --no-symmetry-dual-path --global-assignment-trajectory --ga-population 100 --ga-generations 500 --pso-particles 60 --pso-iterations 200 --aco-ants 60 --aco-iterations 150 --resume
+INVALIDATE 13 proposed rows produced by a different route-message mode; baseline rows are kept
+DONE proposed_n84_k10_h11_s7: E=167.352 kWh, solver=18.10 s, oracle=13.55 s, feasible=True
+FIGURES UPDATED through N=84: scalability_runtime_ieee.pdf, scalability_runtime_ieee.eps, scalability_runtime_ieee.png, scalability_energy_per_bin_ieee.pdf, scalability_energy_per_bin_ieee.eps, scalability_energy_per_bin_ieee.png
+DONE proposed_n100_k12_h11_s7: E=203.249 kWh, solver=44.99 s, oracle=16.02 s, feasible=True
+FIGURES UPDATED through N=100: scalability_runtime_ieee.pdf, scalability_runtime_ieee.eps, scalability_runtime_ieee.png, scalability_energy_per_bin_ieee.pdf, scalability_energy_per_bin_ieee.eps, scalability_energy_per_bin_ieee.png
+DONE proposed_n120_k14_h11_s7: E=242.987 kWh, solver=39.75 s, oracle=19.53 s, feasible=True
+FIGURES UPDATED through N=120: scalability_runtime_ieee.pdf, scalability_runtime_ieee.eps, scalability_runtime_ieee.png, scalability_energy_per_bin_ieee.pdf, scalability_energy_per_bin_ieee.eps, scalability_energy_per_bin_ieee.png
+DONE proposed_n140_k17_h11_s7: E=280.670 kWh, solver=70.21 s, oracle=23.29 s, feasible=True
+FIGURES UPDATED through N=140: scalability_runtime_ieee.pdf, scalability_runtime_ieee.eps, scalability_runtime_ieee.png, scalability_energy_per_bin_ieee.pdf, scalability_energy_per_bin_ieee.eps, scalability_energy_per_bin_ieee.png
+DONE proposed_n160_k19_h11_s7: E=326.626 kWh, solver=141.46 s, oracle=28.96 s, feasible=True
+FIGURES UPDATED through N=160: scalability_runtime_ieee.pdf, scalability_runtime_ieee.eps, scalability_runtime_ieee.png, scalability_energy_per_bin_ieee.pdf, scalability_energy_per_bin_ieee.eps, scalability_energy_per_bin_ieee.png
+DONE proposed_n180_k21_h11_s7: E=363.061 kWh, solver=170.47 s, oracle=30.26 s, feasible=True
+FIGURES UPDATED through N=180: scalability_runtime_ieee.pdf, scalability_runtime_ieee.eps, scalability_runtime_ieee.png, scalability_energy_per_bin_ieee.pdf, scalability_energy_per_bin_ieee.eps, scalability_energy_per_bin_ieee.png
+DONE proposed_n200_k24_h11_s7: E=397.341 kWh, solver=314.60 s, oracle=34.29 s, feasible=True
+FIGURES UPDATED through N=200: scalability_runtime_ieee.pdf, scalability_runtime_ieee.eps, scalability_runtime_ieee.png, scalability_energy_per_bin_ieee.pdf, scalability_energy_per_bin_ieee.eps, scalability_energy_per_bin_ieee.png
+DONE proposed_n220_k26_h11_s7: E=436.803 kWh, solver=354.49 s, oracle=39.61 s, feasible=True
+FIGURES UPDATED through N=220: scalability_runtime_ieee.pdf, scalability_runtime_ieee.eps, scalability_runtime_ieee.png, scalability_energy_per_bin_ieee.pdf, scalability_energy_per_bin_ieee.eps, scalability_energy_per_bin_ieee.png
+DONE proposed_n240_k29_h11_s7: E=487.597 kWh, solver=541.74 s, oracle=41.81 s, feasible=True
+FIGURES UPDATED through N=240: scalability_runtime_ieee.pdf, scalability_runtime_ieee.eps, scalability_runtime_ieee.png, scalability_energy_per_bin_ieee.pdf, scalability_energy_per_bin_ieee.eps, scalability_energy_per_bin_ieee.png
+DONE proposed_n260_k31_h11_s7: E=519.029 kWh, solver=420.50 s, oracle=45.97 s, feasible=True
+FIGURES UPDATED through N=260: scalability_runtime_ieee.pdf, scalability_runtime_ieee.eps, scalability_runtime_ieee.png, scalability_energy_per_bin_ieee.pdf, scalability_energy_per_bin_ieee.eps, scalability_energy_per_bin_ieee.png
+DONE proposed_n280_k33_h11_s7: E=550.074 kWh, solver=547.24 s, oracle=50.79 s, feasible=True
+FIGURES UPDATED through N=280: scalability_runtime_ieee.pdf, scalability_runtime_ieee.eps, scalability_runtime_ieee.png, scalability_energy_per_bin_ieee.pdf, scalability_energy_per_bin_ieee.eps, scalability_energy_per_bin_ieee.png
+DONE proposed_n300_k36_h11_s7: E=599.969 kWh, solver=833.22 s, oracle=53.89 s, feasible=True
+FIGURES UPDATED through N=300: scalability_runtime_ieee.pdf, scalability_runtime_ieee.eps, scalability_runtime_ieee.png, scalability_energy_per_bin_ieee.pdf, scalability_energy_per_bin_ieee.eps, scalability_energy_per_bin_ieee.png
+DONE proposed_n350_k42_h11_s7: E=683.269 kWh, solver=2044.87 s, oracle=72.49 s, feasible=True
+FIGURES UPDATED through N=350: scalability_runtime_ieee.pdf, scalability_runtime_ieee.eps, scalability_runtime_ieee.png, scalability_energy_per_bin_ieee.pdf, scalability_energy_per_bin_ieee.eps, scalability_energy_per_bin_ieee.png
+DONE proposed_n400_k48_h11_s7: E=789.783 kWh, solver=3406.49 s, oracle=80.04 s, feasible=True
+DONE nn_n400_k48_h11_s7: E=903.725 kWh, solver=21.43 s, oracle=80.04 s, feasible=True
+DONE aco_n400_k48_h11_s7: E=790.004 kWh, solver=322.27 s, oracle=80.04 s, feasible=True
+DONE pso_n400_k48_h11_s7: E=895.947 kWh, solver=448.73 s, oracle=80.04 s, feasible=True
+DONE ga_n400_k48_h11_s7: E=889.709 kWh, solver=558.20 s, oracle=80.04 s, feasible=True
+FIGURES UPDATED through N=400: scalability_runtime_ieee.pdf, scalability_runtime_ieee.eps, scalability_runtime_ieee.png, scalability_energy_per_bin_ieee.pdf, scalability_energy_per_bin_ieee.eps, scalability_energy_per_bin_ieee.png
+DONE proposed_n450_k54_h11_s7: E=882.935 kWh, solver=17881.01 s, oracle=87.31 s, feasible=True
+DONE nn_n450_k54_h11_s7: E=1014.004 kWh, solver=30.70 s, oracle=87.31 s, feasible=True
+DONE aco_n450_k54_h11_s7: E=882.511 kWh, solver=472.19 s, oracle=87.31 s, feasible=True
+DONE pso_n450_k54_h11_s7: E=1010.738 kWh, solver=618.50 s, oracle=87.31 s, feasible=True
+DONE ga_n450_k54_h11_s7: E=991.485 kWh, solver=790.40 s, oracle=87.31 s, feasible=True
+FIGURES UPDATED through N=450: scalability_runtime_ieee.pdf, scalability_runtime_ieee.eps, scalability_runtime_ieee.png, scalability_energy_per_bin_ieee.pdf, scalability_energy_per_bin_ieee.eps, scalability_energy_per_bin_ieee.png
+DONE proposed_n500_k60_h11_s7: E=956.081 kWh, solver=40576.62 s, oracle=98.53 s, feasible=True
+DONE nn_n500_k60_h11_s7: E=1094.735 kWh, solver=41.80 s, oracle=98.53 s, feasible=True
+DONE aco_n500_k60_h11_s7: E=958.839 kWh, solver=610.18 s, oracle=98.53 s, feasible=True
+DONE pso_n500_k60_h11_s7: E=1084.411 kWh, solver=819.59 s, oracle=98.53 s, feasible=True
+DONE ga_n500_k60_h11_s7: E=1065.869 kWh, solver=963.11 s, oracle=98.53 s, feasible=True
+FIGURES UPDATED through N=500: scalability_runtime_ieee.pdf, scalability_runtime_ieee.eps, scalability_runtime_ieee.png, scalability_energy_per_bin_ieee.pdf, scalability_energy_per_bin_ieee.eps, scalability_energy_per_bin_ieee.png
+HighsMipSolverData::transformNewIntegerFeasibleSolution tmpSolver.run();
+HighsMipSolverData::transformNewIntegerFeasibleSolution tmpSolver.run();
+RUN C:\Users\guild\.conda\envs\tsp\python.exe -m scripts.plotting.scalability --input C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\results\scalability\scalability_runs.csv --output-dir C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\figures\scalability
+C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\figures\scalability\scalability_runtime_ieee.pdf
+C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\figures\scalability\scalability_runtime_ieee.eps
+C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\figures\scalability\scalability_runtime_ieee.png
+C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\figures\scalability\scalability_energy_per_bin_ieee.pdf
+C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\figures\scalability\scalability_energy_per_bin_ieee.eps
+C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\figures\scalability\scalability_energy_per_bin_ieee.png

@@ -18,8 +18,10 @@ def _load(path: Path) -> dict:
     config = json.loads(path.read_text(encoding="utf-8"))
     if config.get("schema_version") != 1:
         raise ValueError("config schema_version must be 1")
-    if config.get("experiment") not in {"k_sweep", "hourly_24h", "online"}:
-        raise ValueError("experiment must be k_sweep, hourly_24h, or online")
+    if config.get("experiment") not in {
+            "k_sweep", "hourly_24h", "online", "scalability"}:
+        raise ValueError(
+            "experiment must be k_sweep, hourly_24h, online, or scalability")
     return config
 
 
@@ -61,6 +63,8 @@ def _solver_arguments(config: dict) -> list[str]:
         arguments.append("--vehicle-gauss-seidel")
     if solver.get("certified_route_messages"):
         arguments.append("--certified-route-messages")
+    if solver.get("global_assignment_trajectory"):
+        arguments.append("--global-assignment-trajectory")
     return arguments
 
 
@@ -146,8 +150,17 @@ def _hourly_pipeline(config: dict) -> tuple[list[list[str]], list[list[str]]]:
     plot = [
         sys.executable, "-m", "scripts.plotting.ieee",
         "--input", str(output), "--output-dir", str(figures),
+        "--route-dir", str(results / "hourly_routes"),
     ]
-    return [command], [plot]
+    post = [plot]
+    if 11 in [int(value) for value in instance["hours"]]:
+        post.append([
+            sys.executable, "-m", "scripts.plotting.route_maps",
+            "--route-dir", str(results / "hourly_routes"),
+            "--output-dir", str(PROJECT_ROOT / "figures/route_comparison"),
+            "--hour", "11", "--seed", str(instance["seed"]),
+        ])
+    return [command], post
 
 
 def _online_pipeline(config: dict) -> tuple[list[list[str]], list[list[str]]]:
@@ -194,6 +207,34 @@ def _online_pipeline(config: dict) -> tuple[list[list[str]], list[list[str]]]:
     return [command], [plot]
 
 
+def _scalability_pipeline(
+        config: dict) -> tuple[list[list[str]], list[list[str]]]:
+    instance = config["instance"]
+    results = _output_path(config["output"]["results"], "results")
+    figures = _output_path(config["output"]["figures"], "figures")
+    output = results / config["output"].get("csv", "scalability_runs.csv")
+    command = [
+        sys.executable, "-m", "scripts.scalability",
+        "--sizes", *map(str, instance["sizes"]),
+        "--bins-per-vehicle", str(instance["bins_per_vehicle"]),
+        "--start-hour", str(instance["start_hour"]),
+        "--seeds", *map(str, instance["seeds"]),
+        "--methods", *config["methods"],
+        "--bins-csv", str((PROJECT_ROOT / instance["bins_csv"]).resolve()),
+        "--output", str(output),
+        "--figure-dir", str(figures),
+        *_solver_arguments(config),
+        *_baseline_arguments(config),
+    ]
+    if config.get("resume", True):
+        command.append("--resume")
+    plot = [
+        sys.executable, "-m", "scripts.plotting.scalability",
+        "--input", str(output), "--output-dir", str(figures),
+    ]
+    return [command], [plot]
+
+
 def _run(command: list[str], dry_run: bool) -> None:
     print(f"RUN {subprocess.list2cmdline(command)}", flush=True)
     if not dry_run:
@@ -208,6 +249,7 @@ def run(config_path: Path, dry_run: bool = False,
         "k_sweep": _k_sweep_pipeline,
         "hourly_24h": _hourly_pipeline,
         "online": _online_pipeline,
+        "scalability": _scalability_pipeline,
     }
     primary, post = builders[config["experiment"]](config)
     if not figures_only:

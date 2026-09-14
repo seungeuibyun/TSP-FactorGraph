@@ -1,0 +1,1128 @@
+                                                                                                                                                                     1
+
+
+
+
+        Adaptive Energy-Aware Fleet Coordination for
+                  Electric Waste Collection
+                                         Seungeui Byun, Hong Ki Kim, and Sang Hyun Lee
+
+
+
+
+   Abstract—Smart waste collection uses real-time sensing to
+coordinate electric fleets as waste demands, traffic conditions,
+and vehicle states change. Vehicle assignment determines each
+vehicle’s workload, while routing determines its payload evolution
+and traffic exposure, linking them through energy consumption.
+This paper develops an adaptive energy-aware fleet coordination
+framework that represents assignment and routing within a
+unified graphical model. Message-passing implements dynamic-
+programming principles on this graph to distribute collection
+tasks and derive energy-efficient routes, with routing-energy
+metrics coordinating both decisions. The framework directly
+updates assignments and routes as operating conditions change,
+without retraining or restarting a fleet-wide search. A real-map
+digital-twin testbed evaluates this adaptability under varying
+traffic, waste demand, and fleet conditions. Numerical results
+show [XX% lower fleet energy consumption than BASELINE]                                 Roads               Smart bin (bar = fill)       Vehicle battery level
+while [COLLECTION-PERFORMANCE RESULT]. The results                                      Vehicle route   d   Central depot
+                                                                                                                                     Q
+                                                                                                                                         Vehicle load (< capacity)
+further reveal a fleet-size tradeoff between per-vehicle payload
+and total fleet travel, providing insight into energy-efficient fleet
+sizing.                                                                       Fig. 1. Adaptive energy-aware fleet coordination for smart waste collection.
+
+   Index Terms—Smart waste collection, electric vehicle fleets,
+fleet coordination, adaptive routing, message-passing.
+                                                                              and collection operations rather than travel distance alone [12].
+                                                                              Vehicle assignment determines the collection workload and the
+                         I. I NTRODUCTION
+                                                                              waste accumulated by each vehicle, while routing determines
+   Smart waste collection connects sensing, communication,                    how that payload evolves and which traffic conditions the
+and fleet operation to support sustainable urban services [1],                vehicle encounters. Energy-efficient operation depends jointly
+[2], [3]. Internet-of-Things (IoT) infrastructure provides real-              on task distribution and route construction.
+time information from geographically distributed waste bins
+                                                                                 Fig. 1 illustrates the coupling between vehicle assignment
+[4], replacing fixed collection schedules with operations that
+                                                                              and routing in electric waste collection. The assignment deter-
+respond to observed demands [5]. Recent systems use bin
+                                                                              mines which bins form each vehicle’s workload, while routing
+states and spatial information for route planning [6], coordinate
+                                                                              determines their visiting order and the resulting payload evo-
+multiple collection vehicles from real-time waste volumes [7],
+                                                                              lution. General vehicle routing already couples customer as-
+and combine collection information with vehicle operating
+                                                                              signment with visit ordering [13], but electric waste collection
+constraints through connected vehicle systems [8]. Smart
+                                                                              further links both decisions through load- and traffic-dependent
+waste management has progressed from passive monitoring
+                                                                              energy consumption. The energy cost of an assignment cannot
+demand toward automated fleet operation driven by current
+                                                                              be determined until its routing problem is resolved, while
+operating conditions.
+                                                                              the routing cost itself depends on the payload created by
+   The electrification of waste collection fleets extends this
+                                                                              that assignment. Waste demand, traffic, and vehicle states
+development toward low-carbon urban transportation [9]. Elec-
+                                                                              also change during collection, altering this relationship after
+tric vehicles are increasingly considered as alternatives to
+                                                                              an operating plan has been constructed. Fleet coordination
+conventional refuse trucks [10], placing energy consumption at
+                                                                              resolves coupled assignment and routing decisions by adapting
+the center of fleet operation [11]. An electric refuse truck con-
+                                                                              them to changing energy costs and operating conditions.
+sumes energy according to its payload, speed, road conditions,
+                                                                                 There have been several studies that present several mech-
+   This work was supported by the Institute of Information & Communications   anisms for handling such combinatorial structure of fleet
+Technology Planning & Evaluation (IITP) grant (No. RS-2024-00395824)          planning. Electric waste collection models incorporate battery
+and the National Research Foundation of Korea (NRF) grant (No. RS-2025-
+00563388), both funded by the Korea government (MSIT).                        and working-time constraints and use clustering and routing
+   The first two authors contributed equally to the work. S. Byun and S. H.   heuristics for larger instances [14]. Urban fleet models account
+Lee are with the School of Electrical Engineering, Korea University, Seoul    for time-varying traffic and load-dependent operating costs
+02841, Korea (e-mail: {shoreview01, sanghyunlee}@korea.ac.kr). H. K. Kim
+is with the College of IT Convergence, Gachon University, Seongnam 13120,     [15]. Heuristic and metaheuristic methods construct solutions
+Korea (e-mail: b9b13@gachon.ac.kr).                                           through neighborhood, insertion, and repair operations [16],
+                                                                                                                                    2
+
+
+
+while dynamic-programming exploits the sequential structure         adaptive fleet operation through distributed computation.
+of routing to reduce explicit route enumeration [17]. These            The main contributions of this work are summarized as:
+methods provide effective tools for assigning or routing ve-           • Energy-aware fleet formulation: Electric waste collec-
+hicles under detailed operating constraints. However, solving            tion is formulated as a coupled vehicle-assignment and
+assignment and routing separately prevents the assignment                routing problem that captures evolving payload, time-
+stage from directly accounting for the route-dependent energy            varying traffic, and vehicle energy consumption. A unified
+cost, whereas jointly enumerating assignments and routes leads           graphical model represents dual route-dependent energy
+to a rapidly growing search space. The central challenge is              relationship within a common framework.
+to incorporate routing-energy information into vehicle assign-         • Distributed       adaptive     coordination: Dynamic-
+ment without explicitly searching over all assignment-route              programming principles are developed for the
+combinations.                                                            decomposed graph, and message-passing implements
+   Changing operating conditions make this coordination in-              the resulting computations in a distributed manner.
+herently dynamic. Waste collection demands, traffic, and ve-             Real-valued decision metrics exchange routing-energy
+hicle states directly determine the energy costs used for assign-        information between assignment and routing, enabling
+ment and routing, and their variation can change both decisions          both decisions to adapt to changing operating conditions.
+during the operation. Dynamic waste collection methods revise            Numerical results show [XX% lower fleet energy
+routes using real-time bin information and time-dependent                consumption than BASELINE] while [COLLECTION-
+travel times [18], while rolling-horizon approaches reconstruct          PERFORMANCE RESULT].
+plans as new information becomes available [19]. For electric          • Digital-twin validation and fleet-sizing insight: A real-
+fleets, route updates also affect the energy costs used for              map digital-twin testbed based on the Seoul road network
+vehicle assignment. Changes in operating conditions affect               evaluates the framework under varying traffic, waste
+assignment and routing through their coupled energy costs.               demand, and fleet conditions. The evaluation reveals a
+   Machine-learning-based methods provide another approach               tradeoff between reduced per-vehicle payload and in-
+to rapid replanning. Deep reinforcement learning shifts route            creased total fleet travel as fleet size grows, identifying
+construction to pretrained policies, reducing the computation            an energy-efficient operating region for fleet sizing.
+performed during operation [20]. Graph neural networks simi-        The results establish the proposed framework as an effective
+larly estimate routing costs from learned graph representations     solution for adaptive energy-efficient electric waste collection.
+and support higher-level fleet decisions [21]. Learning has also       The remainder of this paper is organized as: Section II
+been combined with local search to handle stochastic waste          presents the system model and problem formulation. Section
+demand [22]. These approaches reduce online computation by          III presents a distributed solution to the coupled assignment
+learning parts of the routing process in advance, but their re-     and routing problem. Section IV presents the digital-twin
+sponses depend on the operating conditions represented during       evaluation and numerical results, and Section V concludes the
+training. Changes in problem size and data distribution conse-      paper.
+quently degrade the generalization of neural routing models
+[23]. Repeated combinatorial search and pretrained models                                II. S YSTEM M ODEL
+thus provide different mechanisms for replanning, but neither
+                                                                       This section presents a electric waste collection model under
+tracks the changing energy relationship between assignment
+                                                                    changing waste, traffic, and vehicle conditions. The model first
+and routing within a common computational structure.
+                                                                    describes the information available at each coordination epoch,
+   This paper develops a distributed framework for adaptive
+                                                                    then derives load- and traffic-dependent travel energy, and
+energy-aware fleet coordination. A unified graphical model
+                                                                    finally formulates the coupled vehicle-assignment and routing
+represents vehicle assignment and routing through nodes de-
+                                                                    task.
+scribing their decision variables, constraints, and operating
+states. The graph is decomposed into tractable components
+for distributed computation, with dynamic-programming prin-         A. Waste collection in urban road networks
+ciples characterizing the sequential decisions within each com-        Consider an automated waste collection system with N
+ponent. Message-passing framework implements these compu-           smart bins and K electric collection vehicles. Let I =
+tations and exchanges information between the assignment and        {1, . . . , N } and K = {1, . . . , K} denote the bin and vehicle
+routing components. Instead of returning only a single optimal      index sets, respectively. Each smart bin has a known location
+decision, each component produces real-valued messages that         and reports its current uncollected waste mass, and the road
+quantify the confidence of alternative decisions. In particu-       infrastructure provides traffic information for the urban road
+lar, the routing component extends dynamic-programming to           network [6].
+compute decision-confidence metrics for alternative routing            Fleet coordination is updated as the operating conditions
+choices, allowing route-dependent energy information to di-         change. Let τ denote the physical time at which the current
+rectly influence vehicle assignment. The exchanged metrics          fleet plan is constructed. All information available at τ defines
+thereby coordinate task distribution and route construction         the current coordination epoch. During the resulting vehicle
+without exhaustive fleet-wide search. As operating conditions       operation, t ≥ τ denotes a physical time. When a vehicle
+change, the same message-passing structure updates these            traverses a road path consisting of consecutive edges, tr
+metrics and produces new assignments and routes, providing          denotes the physical time at which it enters the rth edge
+                                                                                                                                                   3
+
+
+
+                                                                                        Based on the traffic information available at τ , let Te (t)
+          Vehicle      Bin          Route plan   Free     Congested
+                                                                      Traffic state
+                                                                                      denote the estimated traversal time of edge e for a vehicle
+                                                                                      entering it at time t. The corresponding average speed is
+                                                                                                                             Le
+                                                                                                                 ve (t) =          .             (2)
+                                                                                                                            Te (t)
+                                                                                      The electric refuse-truck model in [12] relates vehicle mass,
+                                                                                      road geometry, and traffic conditions to battery consumption.
+                                                                                      A vehicle entering edge e at time t with payload ℓ has total
+        (a)                   (b)                       (c) After replanning          mass m0 + ℓ. Its longitudinal tractive force is
+
+Fig. 2. Adaptive electric waste collection under time-varying traffic condi-                    Fe (t, ℓ) = (m0 + ℓ)g (Crr cos θe + sin θe )
+tions, where updated traffic information can alter both vehicle-to-bin assign-                                 1
+ments and routes.                                                                                            + ρCd Af ve (t)2 ,                  (3)
+                                                                                                               2
+                                                                                      where g is the gravitational acceleration, Crr is the rolling-
+of that path. Thus, τ specifies the time at which the fleet                           resistance coefficient, ρ is the air density, Cd is the aero-
+problem is constructed, t describes time during the subsequent                        dynamic drag coefficient, and Af is the frontal area. The
+operation, and tr tracks time along an individual road path. Let                      drivetrain converts this mechanical power differently under
+Iτ ⊆ I denote the bins that remain unserved at time τ . Bin                           traction and regenerative braking. Define the corresponding
+i ∈ Iτ contains uncollected waste mass wi (τ ). Each vehicle                          power-conversion factor as
+has payload capacity ℓmax , curb mass m0 , maximum battery                                                       (
+energy Bmax , and minimum battery reserve Bmin . The state                                                         1/ηdrv , F ≥ 0,
+                                                                                                        γ(F ) =                                  (4)
+of vehicle k ∈ K at physical time t is                                                                             ηreg ,   F < 0,
+                                             ⊤                                      where ηdrv and ηreg denote the drivetrain and regenerative
+              yk (t) = pk (t) ℓk (t) bk (t) ,                (1)
+                                                                                      efficiencies, respectively. The battery power associated with
+where pk (t), ℓk (t), and bk (t) denote its position, payload,                        vehicle motion over edge e is given by
+and remaining battery energy, respectively. At the current
+                                                                                                                γ(Fe (t, ℓ))Fe (t, ℓ)ve (t)
+coordination time τ , the available payload capacity of vehicle                                    Pe (t, ℓ) =                              ,    (5)
+k is ℓmax − ℓk (τ ). Initially, all vehicles depart from a common                                                         1000
+depot d with zero payload and battery energy Bmax . The fleet                         where the division by 1000 converts power from watts to kilo-
+plan at τ is constructed from the remaining waste demands                             watts. A positive Pe (t, ℓ) represents battery consumption for
+{wi (τ )}i∈Iτ , the vehicle states {yk (τ )}k∈K , and the traffic                     traction, whereas a negative value represents energy recovery
+information available at that time. A subsequent change in                            through regenerative braking. Including auxiliary power Paux ,
+these quantities defines a new coordination time and a new                            average battery energy consumed over edge e is expressed as
+fleet-planning instance.                                                                                         Te (t)
+   Fig. 2 shows how the operating state connects vehicle                                          Eeavg (t, ℓ) =        [Pe (t, ℓ) + Paux ] ,    (6)
+                                                                                                                 3600
+assignment and routing. Assignment determines the collection                           where the division by 3600 converts the traversal time from
+workload of each vehicle and the payload accumulated during                           seconds to hours, so that the energy is measured in kWh.
+collection. Routing determines the order in which this payload                        The resulting edge energy depends on payload through the
+evolves and the traffic conditions encountered along the trip.                        vehicle mass and on traffic through both the traversal speed
+Waste demand, traffic, and vehicle states therefore determine                         and traversal time. In addition to the energy associated with
+how vehicle assignment and routing jointly affect fleet energy                        average edge traversal, congested traffic can induce repeated
+consumption.                                                                          braking and re-acceleration, particularly near road intersec-
+                                                                                      tions. To capture this consumption and add it into the battery
+B. Load- and traffic-dependent energy model                                           energy, let Teref denote the nominal traversal time of edge e
+                                                                                      and let ∆Te specify a tolerance around this nominal condition.
+   The energy cost of vehicle travel depends on both the carried                      We define the normalized traversal-time deviation as
+payload and the traffic encountered along the road network.
+The depot and bin locations are embedded in a directed road                                                           Te (t) − Teref
+                                                                                                          ze (t) =                   ,           (7)
+graph G = (V, E), where each edge e ∈ E represents a directed                                                              ∆Te
+road segment with length Le and inclination angle θe . The                                                                                       +
+                                                                                      and introduce the congestion penalty ϕe (t) = [ze (t) − 1] ,
+fleet plan is constructed at the current coordination time τ . For                    where [x]+ = max {x, 0}. Hence, normal variations in traver-
+travel occurring after τ , let t denote the physical departure time                   sal time do not incur an additional energy cost, whereas
+of a vehicle from a location. When the corresponding road path                        sufficiently prolonged one increases the penalty linearly. The
+consists of consecutive edges (e1 , . . . , eM ), let tr denote the                   resulting edge energy is augmented as
+time at which the vehicle enters edge er . Thus, t1 = t ≥ τ ,
+and the subsequent edge-entry times are determined by the                                      Ee (t, ℓ) = Eeavg (t, ℓ) + κsg (m0 + ℓ)ϕe (t),    (8)
+preceding edge traversal times.
+                                                                                                                                               4
+
+
+
+where κsg is the stop-and-go energy coefficient. The addi-           bk,h denote the departure time, payload, and remaining battery
+tional term represents the increased energy associated with          energy, respectively, after vehicle k services location ak,h . The
+braking and subsequent acceleration under congested traffic          route is initialized from the vehicle state observed at tτ , with
+and increases with vehicle mass, reflecting the greater energy       tk,0 = tτ , ℓk,0 = ℓk (tτ ), and bk,0 = bk (tτ ). For transition h,
+required to repeatedly accelerate a more heavily loaded ve-          the departure time tk,h−1 and payload ℓk,h−1 are used as t and
+hicle. Thus, traffic affects the edge energy not only through        ℓ, respectively, in Eab (t, ℓ) and Tab (t, ℓ). Servicing bin i takes
+the average traversal speed and duration, but also through the       si seconds and consumes lifting and compaction energy elc         i .
+additional stop-and-go operation induced by severe congestion.       The stationary auxiliary systems additionally consume power
+   The edge-level energy model is extended to travel between         Psvc during service. The resulting service energy is
+service locations. Let a and b denote two bins or the depot,                                                     si
+and let Πab denote the set of feasible directed road paths from                           Eisvc = elci + Psvc        ,               (14)
+                                                                                                              3600
+a to b. Consider a path π = (e1 , . . . , eM ) ∈ Πab for a vehicle   where division by 3600 converts the service time from seconds
+departing from a at time t with payload ℓ. As defined above, tr      to hours. For the depot, wd (tτ ) = 0, sd = 0, and Edsvc = 0.
+denotes the entry time to edge er , with t1 = t. The subsequent
+                                                                        For transition h, vehicle k departs from ak,h−1 at time
+edge-entry times follow
+                                                                     tk,h−1 with payload ℓk,h−1 , travels to ak,h , and then services
+           tr = tr−1 + Ter−1 (tr−1 ), r = 2, . . . , M.       (9)    the destination. The departure time after service is updated as
+Since no waste is collected between two service locations, the         tk,h = tk,h−1 + Tak,h−1 ,ak,h (tk,h−1 , ℓk,h−1 ) + sak,h .           (15)
+payload remains ℓ along the path. The energy for path π is
+                                                                     The collected waste is then added to the vehicle payload
+                                 M
+                                 X                                   according to
+                   Eπ (t, ℓ) =         Eer (tr , ℓ).         (10)
+                                 r=1                                                    ℓk,h = ℓk,h−1 + wak,h (tτ ),                        (16)
+Also, the minimum travel energy from a to b is                       and the battery state for h = 1, . . . , Hk,τ becomes
+                  Eab (t, ℓ) = min Eπ (t, ℓ),
+                                 π∈Πab
+                                                             (11)      bk,h = bk,h−1 − Eak,h−1 ,ak,h (tk,h−1 , ℓk,h−1 ) − Easvc
+                                                                                                                             k,h
+                                                                                                                                 . (17)
+
+and Tab (t, ℓ) denotes the travel time along the corresponding       The travel energy of transition h is evaluated using the payload
+energy-minimizing path. These two quantities describe the            ℓk,h−1 carried before collecting waste at ak,h . The newly
+energy and time required to move between service locations           collected waste therefore affects the energy consumption from
+for a given departure time and payload, and are used to              the next transition onward. Since the payload increases mono-
+construct the collection routes.                                     tonically along the collection route, the aggregate capacity
+                                                                     constraint in (12) guarantees the payload limit throughout
+C. Vehicle assignment and energy-aware routing                       the route. The total energy consumed by vehicle k over its
+                                                                     remaining route is given by
+   At replanning epoch τ , the remaining collection tasks are
+distributed among available vehicles, and a visiting order is                                     Hk,τ
+                                                                                                  X
+determined for the bins assigned to each vehicle. Let Ik,τ ⊆                Ek (tτ , ak,τ ) =            Eak,h−1 ,ak,h (tk,h−1 , ℓk,h−1 )
+Iτ denote the bins assigned to vehicle k. Every remaining                                         h=1
+                                                                                                    Hk,τ
+bin is assigned to exactly one vehicle, and the resulting                                             X
+workload cannot exceed its available payload capacity. Hence,                                     +         Easvc
+                                                                                                               k,h
+                                                                                                                   .                        (18)
+the correponding constraints are given as                                                             h=1
+                        [                                               The fleet-coordination problem at replanning epoch τ is
+                            Ik,τ = Iτ ,                 (12a)
+                                                                     formulated as
+                         k∈K                                                                  X
+                      Ik,τ ∩ Ik′ ,τ = ∅, ∀k ̸= k ′ ,        (12b)       (P1)        min           Ek (tτ , ak,τ )          (19)
+                      X                                                         {Ik,τ },{ak,τ }
+                                                                                                      k∈K
+           ℓk (tτ ) +      wi (tτ ) ≤ ℓmax , ∀k ∈ K.        (12c)
+                     i∈Ik,τ
+                                                                                 subject to           (12), (15), (16), (17),
+                                                                                                      Bmin ≤ bk,h ≤ Bmax ,           ∀k, h.
+Let nk,τ = |Ik,τ | denote the number of bins assigned to
+vehicle k. Its remaining route consists of these bins followed          Problem (P1) couples vehicle assignment and routing
+by a return to the depot, resulting in Hk,τ = nk,τ + 1 travel        through energy consumption. The assignment determines the
+transitions. The route is represented by                             bins collected by each vehicle and thereby its payload evo-
+                                                                    lution. The visiting order determines when each payload is
+                ak,τ = ak,0 , ak,1 , . . . , ak,Hk,τ .     (13)
+                                                                     carried and which traffic conditions are encountered. Hence,
+where ak,0 = pk (tτ ) is the current vehicle position,               the energy cost of an assignment is determined only after its
+ak,1 , . . . , ak,nk,τ contain every bin in Ik,τ exactly once, and   route is evaluated, while these route-dependent energy costs
+ak,Hk,τ = d represents the return to the depot. The energy           determine which assignments are energy efficient. At τ = 0,
+of each route transition depends on the departure time and           (P1) determines the initial fleet plan from the observed waste,
+the payload carried over that transition. Let tk,h , ℓk,h , and      traffic, and vehicle states. At each subsequent replanning
+                                                                                                                                       5
+
+
+
+epoch, updated system information changes the travel costs,             This structure motivates a vehicle-wise factor graph decom-
+the remaining collection tasks, and vehicle states in the same       position coordinated through message-passing [24]. Assign-
+formulation. The fleet plan can adapt to changing operating          ment and capacity conditions remain local across replanning
+conditions without changing the underlying structure.                epochs, while traffic-dependent route energy is evaluated by
+   Directly solving (P1) is challenging since the energy cost        an independent trellis for each vehicle. The binary assignment
+of each assignment depends on its corresponding route, while         graph and vehicle trellises cooperatively exchange their local
+route construction depends on the assigned bins and their            results, allowing the remaining assignments and routes to be
+resulting payload evolution. As a result, evaluating candidate       updated using the latest traffic and vehicle states.
+assignments entails the corresponding routing problems. Also,           For compactness, let Nτ = |Uτ |, wi ≡ wi (tτ ), qk = Q −
+its states further depend on the sequential evolution of payload,    ℓk (tτ ), and suppress the epoch index on route quantities, so
+time, and battery energy. The resulting joint solution space         that rk ≡ rk,τ and Hk ≡ Hk,τ throughout this section.
+grows rapidly with both the number of remaining bins and
+the fleet size. The following section develops a distributed so-     A. Graph model decomposition
+lution that coordinates vehicle assignment and state-dependent         For every i ∈ Uτ and k ∈ K, define the variable bik ∈ {0, 1}
+routing without enumerating their fleet-wide combinations.           which equals one when bin i is assigned to vehicle k. Stacking
+                                                                     these variables gives the assignment matrix B = [bik ].
+                  III. P ROPOSED A LGORITHM                            Exclusive assignment of bin i is represented by
+   The structure of (P1) provides a natural decomposition                                     (         P
+                                                                                                0    if   k∈K bik = 1
+between fleet-level assignment and vehicle-level routing. Once                   Ii (bi,: ) =                                  (20)
+a set of bins is assigned to a vehicle, its route evolves                                       −∞ otherwise,
+sequentially through the assigned bins, and its transition cost      and the capacity condition of vehicle k is represented by
+depends only on the current route state and the next visit.                        (          P                    P
+This sequential structure admits a dynamic-programming (DP)                          0    if    i∈Uτ wi bik ≤ qk ,   i∈Uτ bik ≥ 1,
+                                                                      Vk (b:,k ) =
+representation for each vehicle. A fleet-wide DP, however,                           −∞, otherwise.
+would have to track the assignments and partial routes of all                                                                  (21)
+vehicles simultaneously, resulting in a state space that grows
+rapidly with Nτ and K.                                               Accordingly, Ii coordinates the vehicles competing for bin i,
+   The proposed approach therefore decomposes the fleet-             while Vk coordinates the bins sharing the residual capacity of
+wide problem into an assignment graph and vehicle-wise               vehicle k.
+routing trellises. The assignment graph enforces exclusive bin          For each vehicle k, routing factor Rk connects the assign-
+assignment and vehicle capacity, while each trellis applies the      ment variables in b:,k to the terminal state of its vehicle-
+DP principle to evaluate the route consequences of the bins          specific trellis. The factor returns a finite value only when
+associated with one vehicle. Importantly, the routing com-           the terminal state has visited exactly the selected bins and
+putation returns real-valued metrics for candidate assignment        returned to the depot. Starting from the measured state yk (tτ ),
+decisions rather than only the minimum-energy route. These           the trellis evaluates feasible visitation orders using the traffic-
+metrics summarize how each candidate assignment affects the          and load-dependent energy costs defined in the system model.
+                                                                        Fig. 3 presents the resulting factor graph. Fig. 3a shows the
+vehicle-level route cost and thereby provide the information
+                                                                     assignment graph and one of the K vehicle-specific trellises,
+needed to coordinate the otherwise separated assignment and
+                                                                     Fig. 3b shows the messages among factors, and Fig. 3c shows
+routing computations.
+   The resulting graphical model is solved through distributed       the message exchanges during the replanning operation.
+message passing [24]. Messages propagate the decision met-           B. Algorithm derivations
+rics between the assignment graph and vehicle trellises, so
+that each component performs its local computation while                A message µA→B (bik = c) represents the preference
+accounting for the energy consequences obtained from the             sent from node A to node B when bik = c. Since bik
+other component. When traffic, waste demand, or vehicle              is binary, each message connected to bik is represented by
+states change at a new replanning epoch, the corresponding           the difference between its values at one and zero [25]. The
+local quantities are updated and the same decomposition is           messages exchanged within the binary assignment graph are
+applied to the new fleet state.                                                     ηik = µIi →bik (1) − µIi →bik (0)
+   For compactness, let Nτ = |Iτ |, wi ≡ wi (tτ ), and qk =
+                                                                                    ωik = µbik →Ii (1) − µbik →Ii (0)
+ℓmax − ℓk (tτ ). The epoch index is suppressed from the route
+quantities throughout this section.                                                 ϕik = µVk →bik (1) − µVk →bik (0)
+   (P1) couples vehicle assignment with state-dependent rout-                       γik = µbik →Vk (1) − µbik →Vk (0)
+ing. Each unserved bin must be assigned to one capacity-                            ρik = µbik →Rk (1) − µbik →Rk (0)
+feasible vehicle, while its energy consequence depends on
+                                                                                    δik = µRk →bik (1) − µRk →bik (0).             (22)
+the visitation order, evolving payload, and traffic conditions.
+A fleet-wide dynamic program must jointly represent every            At variable node bik , each outgoing message is obtained by
+assignment and all partial vehicle routes, causing its state space   adding the messages received from the other two factors and
+to grow rapidly with Nτ and K.                                       thus ωik = ϕik + δik , γik = ηik + δik , and ρik = ηik + ϕik .
+                                                                                                                                                                                                   6
+
+
+
+                                 Binary assignment factor graph
+                                                                                                                                                                                    Vk
+
+                               V1                V2                    Vk             VK                                                                                      γik         ϕik
+                                                                                                                   (k)               (k)                                 ρk
+                                                                                                                  βHk −1           ξHk                  λk
+                                                                                                          (k)                (k)               (k)
+                                                                                                         xHk −1             GHk              x Hk                   Rk              bik
+                                                                                                                   (k)              (k)
+                                                                                                                  αHk −1           ψHk                  ζk               δk
+             I1                b11              b12             ···   b1k      ···   b1K                                                                                      ηik         ωik
+
+                                                                                                                                                                                    Ii
+
+             I2                b21              b22             ···   b2k      ···   b2K                                                (b) Messages
+
+                                 ..                  ..                 ..             ..
+                                  .                   .                  .              .
+
+             Ii                bi1               bi2            ···    bik     ···   biK
+                                                                                                                EV 1                                                            EV 2
+                                                                                                                                            Traffic info.
+                                 ..                  ..                 ..             ..
+                                  .                   .                  .              .
+
+          INτ                 bNτ 1            bNτ 2            ···   bNτ k    ···   bNτ K
+
+                                                                                                                                           Coordinator
+
+       (k)           (k)      (k)              (k)          (k)
+     x0            G1       x1         ···    GHk          xHk        Rk
+
+                  Vehicle-k trellis factor graph Tk , k ∈ K                                                     Bin 1              Bin 2                    Bin 3             Bin 4
+
+                                        (a) Factor graph                                                                   (c) Message exchanges for operation
+Fig. 3. Factor graph of the cooperative assignment and routing structure. For each vehicle k, the routing-consistency factor Rk connects its assignment
+variables to the terminal state of the corresponding vehicle-specific trellis.
+
+
+                                        (k)
+   For vehicle k, let mh ∈ {0, 1}Nτ denote the visited-bin                                          associated with competing vehicles. Its outgoing message is
+record after h route transitions. The trellis state is defined as
+                                 i⊤                                                                                            ηik = − max ωih .                                                (26)
+                                                                                                                                             h∈K\{k}
+         h
+   (k)
+  xh = (m(k)  h )
+                 ⊤            ⊤
+                      tk,h yk,h     ,      h = 0, . . . , Hk , (23)
+                                                                                                    The capacity factor Vk receives γjk from the bin variables
+where yk,h is the route-propagated vehicle state in (??).                                           associated with vehicle k. Its outgoing message is
+          (k)
+Hence, xh augments the physical state with the visited-bin                                                     (
+record and departure time required for route optimization. Its
+                                                                                                                                      −i
+                                                                                                                  Pk−i (qk − wi ) − Pk,+ (qk ), wi ≤ qk ,
+                                                                                                         ϕik =                                            (27)
+initial condition is                                                                                              −∞,                           wi > qk ,
+             (k)
+       m0 = 0,                        tk,0 = tτ ,                yk,0 = yk (tτ ).            (24)   Here, Pk−i (L) returns the largest sum of the incoming mes-
+                                                          (k)
+                                                                                                    sages γjk that can be selected from bins j ̸= i within capacity
+At a feasible terminal state, mHk = b:,k and the location                                                                                                    −i
+                                                                                                    L, where the empty selection is allowed. In contrast, Pk,+   (L)
+component of yk,Hk equals the depot d.                                                              is evaluated over nonempty selections:
+  Accordingly, the routing-consistency factor is defined as                                                          −i
+                                                                                                                    Pk,+ (L) =     max
+                                                                                                                                           X
+                                                                                                                                                γjk .           (28)
+                    (
+                                (k)                                                                                                          =S⊆Uτ \{i}
+                                                                                                                                           ∅̸P
+                      0,      mHk = b:,k , ak,Hk = d                                                                                                    j∈S
+                                                                                                                                              j∈S wj ≤L
+                
+             (k)
+  Rk b:,k , xHk =                                         (25)
+                      −∞, otherwise.                                                                                                                 −i
+                                                                                                    If no nonempty feasible selection exists, then Pk,+  (L) = −∞.
+Thus, Rk is a hard consistency factor and does not itself                                           Appendix A presents its Pareto-frontier evaluation, while Ap-
+contain the route-energy cost. The route energy is accumulated                                      pendix B derives (26)-(27).
+                                 (k)
+through the transition factors Gh .                                                                    At cooperative round r, the routing messages returned by
+                                                                              (k)                   the vehicle trellises form the assignment surrogate
+   Unlike the binary assignment variables, xh takes values                                                                   X                 X
+over the feasible combinations of visited bins, location, time,                                               (P2)[r] max         Ii (bi,: ) +   Vk (b:,k )
+                                                                                                                              B
+payload, and battery energy. Messages connected to a trellis                                                                       i∈Uτ                    k∈K
+             (k)           (k)                    (k)
+state, λk (xHk ) and ζk (xHk ) between Rk and xHk , together                                                                                             [r−1]
+                                                                                                                                           X X
+                                                                                                                                    +                   δik bik .                               (29)
+       (k) (k)      (k) (k)    (k) (k)         (k) (k)
+with αh (xh ), βh (xh ), ξh (xh ), and ψh (xh ) within                                                                                  i∈Uτ k∈K
+the trellis, are therefore functions over feasible state values                                     Hard factors retain unique assignment, vehicle capacity, and
+rather than differences between binary values.                                                                                                     [r−1]
+                                                                                                    nonempty-vehicle conditions of (P1), while δik       conveys
+  The assignment factor Ii receives ωih from the variables                                          the route-energy effect returned by vehicle k. The resulting
+                                                                                                                                                                         7
+
+
+
+preference for assigning bin i to vehicle k is ηik + ϕik + δik .                                        Algorithm 1 Cooperative Assignment and Routing
+                               (k)      (k)                                                             Require: Current states, traffic costs, ϵ, ε, Rmax
+   A feasible transition from xh−1 to xh follows the physical
+state propagation in (??): it advances the departure time,                                              Ensure: B, {rk }
+updates yk,h through the new location, payload, and battery                                              1: Initialize feasible B[0] and routes
+energy, and marks the serviced bin in mh .
+                                           (k)                                                           2: Initialize ηik , ϕik , and δik
+                         (k)            (k)          (k)                                                 3: for r = 1, . . . , Rmax do
+   Transition factor Gh connects xh−1 and xh . If the
+                                                                                                         4:     Update ωik and γik
+transition travels from location u to location v at departure
+                                                                                                         5:     Update and damp ηik and ϕik
+time t with payload ℓ, its value is
+                       (                                                                                 6:     Update ρik
+    (k) (k)     (k)       −Cuv (t, ℓ) − Cvsvc , feasible                                                 7:     for all k ∈ K in parallel do
+  Gh (xh−1 , xh ) =                                        (30)                                          8:
+                                                                                                                                 (k)
+                                                                                                                     Update Gh using Cuv and Duv
+                          −∞,                   otherwise.
+                                                                                                         9:          Compute α, ψ, ζ, λ, ξ, and β
+Thus, every feasible branch contributes the negative of the                                             10:          Compute and damp δik by SOVA
+travel and service energy introduced in (11) and (14). For a                                            11:     end for
+complete feasible route,                                                                                                              [r]
+                                                                                                        12:     Decode feasible Bc
+                     Hk                                                                                 13:     Reconstruct candidate routes
+                              (k)      (k)            (k)
+                     X
+                            Gh (xh−1 , xh ) = −Ek (tτ , rk ).                                   (31)    14:     if feasible and (44) holds then
+                     h=1                                                                                15:          Accept the candidate
+Maximizing the accumulated trellis metric therefore minimizes                                           16:     else
+the vehicle energy in (18).                                                                             17:          Retain the previous solution
+                                (k)      (k)                                                            18:     end if
+   The forward recursion from Gh to xh is
+                                                                                                        19:     if (45) holds then
+     (k)       (k)                        (k)      (k)        (k)          (k)       (k)
+  ψh (xh ) = max[Gh (xh−1 , xh ) + αh−1 (xh−1 )]                                                (32)    20:          break
+                             (k)
+                            xh−1                                                                        21:     end if
+                                                                                                        22: end for
+and each internal state forwards this result to the next transition                                                            [r]
+                                                                                                        23: return B[r] , {rk }
+factor
+         (k)       (k)           (k)        (k)
+       αh (xh ) = ψh (xh ),                                 h = 1, . . . , Hk − 1.              (33)
+                                                                                                        The SOVA [26] output is the difference between the two
+The terminal state sends the complete forward metric to Rk
+                                                                                                        conditioned route metrics
+                                          (k)               (k)     (k)
+                               ζk (xHk ) = ψHk (xHk ).                                          (34)
+                                                                                                                      δik = µRk →bik (1) − µRk →bik (0).              (40)
+   Routing factor Rk combines the terminal route metric with                                            A positive δik indicates that the combined assignment and
+the incoming assignment messages ρik . Its message to the                                               energy metric favors including bin i in the route of vehicle k,
+terminal state is                                                                                       while a negative value favors excluding it. Appendix C gives
+           (k)                   (k)
+                                        X
+     λk (xHk ) = max[Rk (b:,k , xHk ) +    ρik bik ].   (35)                                            the derivation of the messages by the trellis.
+                              b:,k
+                                                                        i∈Uτ
+                                                                                                        C. Convergent cooperative updates
+Since Rk is finite only when the terminal visited-bin record
+equals b:,k and the vehicle has returned to the depot, λk                                                  The binary factor graph contains cycles because each bik
+introduces the binary assignment preferences into the trellis.                                          connects the assignment, capacity, and routing factors. Damp-
+   The backward recursion begins with                                                                   ing is applied to the three factor-to-variable binary messages
+                                    (k)      (k)                    (k)
+                                                                                                        to suppress oscillation. For a feasible capacity update,
+                                ξHk (xHk ) = λk (xHk )                                          (36)        [r]           [r−1]                  [r]
+                                                                                                          ηik = (1 − ϵ)ηik        − ϵ max ωih                         (41)
+and proceeds according to                                                                                                             h∈K\{k}
+                                                                                                            [r]           [r−1]
+       (k)      (k)                         (k)        (k)        (k)          (k)   (k)                  ϕik = (1 − ϵ)ϕik        + ϵ[Pk−i (qk − wi ) − Pk−i (qk )]   (42)
+   βh−1 (xh−1 ) = max[Gh (xh−1 , xh ) + ξh (xh )]                                               (37)
+                                (k)                                                                        [r]          [r−1]   [r]            [r]
+                               xh                                                                         δik = (1 − ϵ)δik + ϵ[µRk →bik (1) − µRk →bik (0)].          (43)
+with                                                                                                                                                                   [r]
+                                                                                                        Here, ϵ ∈ (0, 1] is the damping factor. When wi > qk , ϕik
+         (k) (k)    (k) (k)
+        ξh (xh ) = βh (xh ),                                h = 1, . . . , Hk − 1.              (38)    is set directly to −∞. Messages ωik , γik , and ρik are then
+                                                                                                        recomputed from ϕik + δik and ηik + ϕik .
+   For b ∈ {0, 1}, the route factor evaluates the best complete                                                                                              [r]
+                                                                                                            The candidate assignment is decoded from ηik + ϕik +
+                                                                                                                                                                 [r]
+trellis configuration satisfying bik = b                                                                  [r]
+                                                                                                        δik subject to (20) and (21). Complete candidate routes are
+µRk →bik (b)                                                                                            reconstructed under the current traffic and vehicle states. A
+                                                (k)                 (k)
+                                                                                 X                      candidate is accepted only when every route is feasible and
+ =           max           [Rk (b:,k , xHk ) + ζk (xHk ) +                                 ρjk bjk ].
+                     (k)
+                                                                                                                                   [r]                 [r−1]
+     b:,k \bik ,xH
+                                                                                                                     X                     X
+                      k                                                        j∈Uτ \{i}                                 Ek (tτ , rk,c ) <   Ek (tτ , rk ).       (44)
+                                                                                                (39)               k∈K                    k∈K
+                                                                                                                                                                     8
+
+
+
+       (a) Baseline environment                                                           (b) Time-varying operating conditions
+                      Road network          6AM                                             12PM                                    6PM
+                      Waste bin location
+
+
+
+
+                        Korea Univ.
+
+
+                                                                                Waste bin fill       Low          Medium          Full
+
+                                                                                Traffic            Free                      Congested
+
+
+
+Fig. 4. Simulation environment for performance evaluation. (a) Baseline environment of the waste collection system in Seongbuk-gu, Seoul. (b) Visualization
+of time-varying operating conditions based on Seoul Transport Operation and Information Service (TOPIS) [27] with randomly distributed waste load.
+
+
+
+The iterations terminate when the assignment remains un-                                                                   TABLE I
+changed and                                                                                                        S IMULATION PARAMETERS
+
+             [r]     [r−1]        [r]      [r−1]       [r]    [r−1]
+   max{|ηik − ηik            |, |ϕik − ϕik         |, |δik − δik      |} < ε.               Parameter                                       Value / Description
+    i,k
+                                                                           (45)             Number of smart bins, N                                             84
+                                                                                            Baseline road network                       From SUMO package
+                                                                                            Number of vehicles, K                   10, {6, . . . , 14} for sweep
+                                                                                            Curb mass, m0                                                7,000 kg
+D. Computational complexity                                                                 Payload capacity, Q                                          2,000 kg
+                                                                                            Maximum battery capacity, Bmax                               180 kWh
+   Updating all variable-node messages requires O(Nτ K)                                     Minimum battery reserve, Bmin                                 15 kWh
+operations. The assignment-factor updates have the same com-                                Rolling coefficient, Crr                                         0.010
+plexity when the largest and second-largest ωik are retained                                Frontal area of vehicle, Af                                    5.5 m2
+for each bin.                                                                               Node weight, wi                                         U(50, 250) kg
+                                                                                            Propulsion efficiency, ηdrv                                       0.90
+   Let Mk be the largest number of nondominated points
+                                                                                            Regenerative braking efficiency, ηreg                             0.60
+retained in a Pareto frontier for vehicle k. Constructing the
+                                                                                            En-route auxiliary power, Paux                                   3 kW
+                               P independently
+leave-one-out capacity frontiers                gives the con-                             Service time per bin, Ts                                     120 s/bin
+                                         2
+servative time complexity O       k∈K τN   M k  . Prefix and suffix                         Stationary auxiliary power, Psvc                                 2 kW
+frontiers can be reused to reduce repeated computation in                                   Lifting/compaction energy per bin, elci                 0.12 kWh/bin
+implementation.                                                                             Payload state interval, ∆ℓ                                     100 kg
+   Let nk be the number of bins represented in the trellis of
+vehicle k, and let Lk be the largest number of feasible time,
+payload, and battery labels retained at one visited-set and loca-                          A. Simulation setup
+tionP                  and backward
+     state. The forward              PSOVA recursions    require
+                 2 nk                                nk                                       The evaluation uses a digital twin of the road network in
+O           L
+       k∈K k k n  2    time  and  O          L
+                                        k∈K k k  n  2     memory
+per cooperative round. The exponential term is confined to the                             Seongbuk-gu, Seoul, generated from OpenStreetMap data. The
+bins represented by one vehicle trellis, and the K trellises can                           base instance contains N = 84 service nodes representing real
+be processed in parallel. Traffic updates change Cuv (t, ℓ) and                            waste-bin locations extracted from Seoul public data. Shortest-
+Duv (t, ℓ) but do not alter the factor graph structure, allowing                           path road distances between all node pairs form the baseline
+the retained messages and assignments to initialize the next                               cost matrix D0 . As illustrated in Fig. 4(a), the digital twin
+replanning epoch.                                                                          preserves the street topology of the physical service area. Fig.
+                                                                                           4(b) summarizes the three operating conditions considered in
+                                                                                           the simulations: uniform demand without disruption, random
+                   IV. P ERFORMANCE E VALUATION                                            demand without disruption, and random demand with localized
+                                                                                           traffic disruptions. For the scalability experiments, nested
+  This section evaluates the proposed framework in a electric                              instances are created by adding road-network nodes within
+waste collection scenario constructed from a real urban road                               the same boundary, increasing the problem size from 84 to
+network. The evaluation addresses three questions: whether                                 250 service nodes while retaining the original nodes.
+CAP enforces vehicle-capacity constraints under heteroge-                                     Each service node i has demand wi . Uniform weights
+neous and time-varying demands, whether the trellis layer                                  are used when capacity represents the maximum number of
+provides accurate and responsive regional routing, and whether                             nodes served by a vehicle, whereas independently sampled
+both layers remain computationally practical as the service                                integer weights from {1, . . . , 9} model heterogeneous waste
+network grows.                                                                             volumes. In the disruption scenario, 5% of the nodes are
+                                                                                                                                            9
+
+
+
+selected as disruption centers, and road costs within a 500-
+m radius are temporarily increased. Unless stated otherwise,
+results involving random demands or disruptions are averaged
+over 100 Monte-Carlo realizations.
+   For district formation, CAP is compared with weighted
+affinity propagation (weighted AP) and weighted K-medoids
+using the same number of regions. Weighted AP scales the
+similarity as wi s(i, j), and weighted K-medoids incorporates                                                                Feasible
+                                                                                                                             Infeasible
+demand into medoid-based partitioning. These baselines ac-                                                                   Smart bin
+count for demand in their objectives but do not explicitly                                                                   Depot
+                                                                                                                             Capacity Q
+enforce the regional capacity constraint. For routing, the
+proposed trellis is compared with brute force (BF), nearest                                (a) Weighted K-medoids
+neighbor (NN), and a genetic algorithm (GA). BF serves as
+the exact reference, NN is a greedy heuristic, and GA uses
+a population of 100, tournament selection, order crossover,
+swap mutation, and 500 generations. All route solvers operate
+on the same CAP partitions, isolating the effect of the routing
+algorithm.
+
+
+B. Numerical results
+                                                                                                                             Feasible
+   1) Capacity feasibility under static demands: The first ex-                                                               Infeasible
+periment compares the feasibility of the regions generated by                                                                Smart bin
+                                                                                                                             Depot
+weighted affinity propagation, weighted K-medoids, and CAP                                                                   Capacity Q
+under a common capacity budget Q = 40 and random node
+demands. A region                                                                      (b) Weighted affinity propagation
+                  P is declared feasible when its aggregate
+demand satisfies i∈Vk wi ≤ Q. As shown in Fig. 5, CAP
+produces 13 feasible regions out of 13, whereas weighted
+affinity propagation produces 9 feasible regions and weighted
+K-medoids produces 7. The maximum regional loads of the
+two baselines reach 57 and 70, respectively, demonstrating that
+demand-weighted similarities alone do not guarantee capacity
+feasibility.
+   This result reveals a fundamental difference between
+demand-aware clustering and capacity-constrained districting.                                                                Feasible
+                                                                                                                             Infeasible
+The two weighted baselines tend to group geographically                                                                      Smart bin
+attractive nodes even when their combined demand exceeds                                                                     Depot
+                                                                                                                             Capacity Q
+the vehicle budget, because capacity is represented only in-
+directly through the clustering objective. CAP instead treats                         (c) Capacitated affinity propagation
+feasibility as an explicit condition during exemplar selection    Fig. 5. Capacity-feasibility comparison under heterogeneous service demands.
+and assignment. Consequently, the improvement is not limited
+to a lower average load: it removes the overloaded tail of the
+regional-load distribution, which is the part that determines        The important observation is that CAP responds to the surge
+whether the resulting districts can actually be operated by the   by changing the number and composition of districts rather
+available vehicles.                                               than allowing the existing districts to become overloaded.
+   2) Adaptation to time-varying service demands: The sec-        This behavior makes the number of active regions an adaptive
+ond experiment evaluates districting under dynamically chang-     operational variable: additional vehicles or service rounds are
+ing collection demands. The node weights evolve over 12           introduced only while the demand level requires them. After
+time steps, and 40% of the nodes experience a temporary           the surge subsides, the district structure can contract again. The
+demand surge by a factor between 2 and 4 during steps 5-          zero infeasible demand therefore indicates not only constraint
+7. Each method recomputes its partition at every step, and the    satisfaction at isolated time steps but also the ability to track
+served demand is classified according to whether it belongs       temporal demand variation without leaving a portion of the
+to a capacity-feasible region. As shown in Fig. ??, CAP           service demand uncovered.
+maintains zero infeasible demand over the complete horizon by        3) Regional routing performance: The third experiment
+increasing the number of active regions from 11 to 18 during      evaluates routing accuracy after fixing the district assignments
+the surge. In contrast, the cumulative infeasible demands of      obtained by CAP. As shown in Fig. ??, under uniform weights
+weighted affinity propagation and weighted K-medoids reach        and Q = 12, BF and the proposed trellis produce the same
+1127 and 1684, respectively.                                      total route length of 63.004 km, whereas GA and NN increase
+                                                                                                                                                                                                                                               10
+
+
+
+
+                                           250             Proposed          PSO                                                                                          Frozen static            Live-navigation static          Adaptive
+                                                           NN                GA                                                                           300
+                                           225             ACO
+
+
+
+
+                                                                                                                  Final operational energy (kWh)
+ Energy consumption (kWh)
+
+
+
+
+                                                                                                                                                          250
+                                           200
+
+                                           175                                                                                                            200
+
+
+                                           150                                                                                                            150
+
+                                           125
+                                                                                                                                                          100
+
+                                           100
+                                                                                                                                                           50
+                                            75
+                                                 0           4          8           12        16       20   23
+                                                                                                                                                            0
+                                                                              Starting hour                                                                         Proposed        NN               ACO              PSO            GA
+                                                       (a) Cumulative energy consumptions by methods                                                                     (a) Cumulative travel cost by methods
+
+
+                                                            Proposed         PSO                                                                          280           Proposed               PSO
+                                           2100
+ Mean active-vehicle completion time (s)
+
+
+
+
+                                                            NN               GA                                                                                         NN                     GA
+
+
+
+
+                                                                                                                  Snapshot-estimated total energy (kWh)
+                                                            ACO                                                                                           260           ACO
+                                           2000
+                                                                                                                                                          240
+
+                                           1900                                                                                                           220
+
+                                                                                                                                                          200
+                                           1800
+                                                                                                                                                          180
+                                           1700
+                                                                                                                                                          160
+
+                                           1600                                                                                                           140
+
+                                                                                                                                                          120
+                                                  0           4          8           12       16       20   23                                                  0          10             20         30         40           50        60
+                                                                              Starting hour                                                                                                    Elapsed time (min)
+                                                      (b) Mean active-vehicle completion time by methods                                                               (b) Estimation of total energy per snapshot
+Fig. 6. Coordination performance over hourly traffic situations given by [27].
+                                                                                                                                                                        Operational energy (kWh)                     Saving       Replanning
+                                                                                                                                             Method
+                                                                                                                                                                         Frozen                   Adaptive            (%)     latency (min.)
+the cost by 0.2% and 15.2%, respectively. Under random                                                                                       GA       190.50 (±14.43) 184.70 (±13.69)                                  3.0    44.07 (±3.65)
+demands and Q = 40, the experiment is repeated over 100                                                                                      PSO      220.30 (±22.02) 180.04 (±14.27)                                 18.3    32.10 (±1.56)
+Monte-Carlo realizations. The detailed comparison in Table ??                                                                                ACO       171.97 (±8.76) 159.20 (±7.24)                                   7.4    10.91 (±0.60)
+                                                                                                                                             NN       238.05 (±25.04) 196.91 (±18.35)                                 17.3     0.89 (±0.15)
+shows that the proposed trellis matches BF in every realization,                                                                             Proposed 168.87 (±14.33) 158.31 (±9.92)                                   6.3     9.76 (±0.73)
+yielding a mean total cost of 75.421±5.585 km. GA produces
+                                                                                                                                                                                    (c) Performance table
+a 0.7% higher cost, while NN produces a 10.9% higher cost.
+These results verify that the regional trellis computes the exact                                                Fig. 7. Online coordination performance under localized road disruptions.
+route for the evaluated cluster sizes.
+   Two insights follow from this comparison. First, the iden-
+tical trellis and BF costs across all realizations confirm that                                                  selected as disruption epicenters. The costs of road edges
+the factor graph formulation preserves the original regional                                                     within 500 m of each epicenter are multiplied by 3, and each
+routing objective rather than approximating it. Second, the                                                      disruption remains active for three consecutive time steps.
+gap between NN and the exact methods remains substantial                                                         Static routing commits to the route computed before departure,
+under both uniform and random demands, showing that ge-                                                          whereas online routing recomputes the remaining open path
+ographically plausible greedy decisions can create expensive                                                     from the current vehicle location using the active cost matrix.
+downstream connections. GA approaches the optimum more                                                           The results are averaged over 100 disruption realizations.
+closely, but its residual gap and iterative search cost remain                                                      Figure 7 compares the cumulative travel costs of static
+unnecessary for the capacity-bounded regional problems con-                                                      and online routing under localized disruptions. Online re-
+sidered here. The trellis therefore provides exactness without                                                   optimization reduces the mean travel cost of the proposed
+relying on repeated stochastic search.                                                                           method from 68.630 to 67.417 km, corresponding to a 1.8%
+   4) Online adaptation to road disruptions: The fourth ex-                                                      saving. As summarized in Table 7c, the online BF solution
+periment evaluates online route adaptation under localized                                                       attains a slightly lower cost of 67.351 km, while requiring
+disruptions. At every time step, 5% of the service nodes are                                                     substantially greater computation. NN achieves the largest
+                                                                                                                                                                                                              11
+
+
+
+
+                                                  Proposed          PSO                                                                     2.6                                             Proposed   PSO
+                                   60
+                                                  NN                GA                                                                                                                      NN         GA
+
+
+
+
+                                                                                                        Energy per serviced bin (kWh/bin)
+                                                  ACO                                                                                       2.5                                             ACO
+ Energy gap to hourly best (%)
+
+
+
+                                   50
+                                                                                                                                            2.4
+                                   40
+                                                                                                                                            2.3
+
+                                   30
+                                                                                                                                            2.2
+
+                                   20                                                                                                       2.1
+
+
+                                   10                                                                                                       2.0
+
+                                                                                                                                            1.9
+                                    0
+                                            6                 8             10               12   14                                               100           200            300           400      500
+                                                                  Exact active vehicles, K                                                                              Number of bins, N
+                                                (a) Cumulative energy consumptions by methods                                                      (a) Cumulative energy consumptions by methods
+
+
+                                                   Proposed          PSO                                                                    6500                                            Proposed   PSO
+                                   100
+                                                   NN                GA                                                                                                                     NN         GA
+                                                                                                                                            6000
+ Makespan gap to hourly best (%)
+
+
+
+
+                                                   ACO                                                                                                                                      ACO
+                                    80                                                                                                      5500
+
+
+
+                                                                                                        Makespan (s)
+                                                                                                                                            5000
+                                    60
+                                                                                                                                            4500
+
+                                    40                                                                                                      4000
+
+                                                                                                                                            3500
+                                    20
+                                                                                                                                            3000
+
+                                        0
+                                            6                 8              10              12   14                                                100           200           300           400       500
+                                                                  Exact active vehicles, K                                                                              Number of bins, N
+                                                     (b) Calculated makespans by methods                                                                  (b) Calculated makespans by methods
+Fig. 8. Performance evaluation over different number of active vehicles in                             Fig. 9. Scalability comparison.
+three independent time stamps (4 AM, 11 AM, 7 PM).
+
+
+                                                                                                       is the fraction of total demand assigned to capacity-feasible
+relative saving of 3.6%, but its online cost remains 74.440 km                                         regions. The districting results are presented in Fig. ??, which
+and is therefore considerably higher than those of the exact and                                       corresponds to the upper panel of the overall scalability
+trellis-based methods. GA provides only a 0.1% improvement                                             comparison in Fig. ??. CAP serves 100% of the demand
+because its population is reinitialized at every routing step. The                                     over the complete range by increasing the number of active
+proposed method therefore preserves near-BF routing quality                                            regions as the service area grows. In contrast, the feasible-
+while supporting rapid online replanning.                                                              demand ratio of weighted affinity propagation decreases from
+   The relative saving alone does not fully describe online                                            56.6% to 11.6%, while that of weighted K-medoids decreases
+routing quality. NN exhibits the largest percentage reduction                                          from 41.3% to 32.5%. The widening gap shows that capacity
+because its static route has the highest initial cost, yet its                                         violations accumulate as the service network grows when
+replanned route remains worse than those of BF and the trellis.                                        the constraint is not embedded directly into the districting
+A more relevant measure is therefore the combination of                                                procedure.
+final travel cost and replanning latency. The proposed method                                             The scalability trend indicates that feasibility errors in the
+finishes within 0.066 km of online BF while reducing the                                               uncapacitated baselines compound as new nodes are intro-
+replanning time from 4.5 s to 0.13 s. This quality-latency                                             duced. Although their clustering objectives remain demand-
+balance is particularly important when disruptions change                                              aware, they do not provide a mechanism that forces additional
+faster than a computationally expensive solver can repeatedly                                          regions to appear when the total service load grows. CAP,
+produce new routes.                                                                                    by contrast, converts network growth into an increase in the
+   5) Scalability of district formation: The fifth experiment                                          number of capacity-bounded districts, keeping the feasible-
+increases the number of service nodes from 84 to 250 while                                             demand ratio unchanged. This distinction is operationally
+keeping the demand associated with each existing node fixed.                                           significant because expanding the service area should require
+The regional routes are computed using the exact trellis, and                                          more vehicle assignments, not progressively larger violations
+only the districting method is varied. The performance metric                                          within a fixed or poorly adjusted district structure.
+                                                                                                                                     12
+
+
+
+   6) Scalability of regional routing: The sixth experiment          capacity subproblem is
+fixes the CAP partitions and compares the regional route                                                   X
+solvers over the same nested instances. As shown in Fig. ??,                    Pk−i (L) =     max                   γjk bjk
+                                                                                             bjk ∈{0,1}
+the proposed trellis and BF return identical route costs for                                 j∈Uτ \{i} j∈Uτ \{i}
+                                                                                                           X
+all 27 evaluated instances. GA remains within 0.03%-0.31%                              subject to                    wj bjk ≤ L.   (46)
+of the optimum, whereas NN incurs an excess cost of 7.9%-                                               j∈Uτ \{i}
+11.4%. The computation-time results in Fig. ?? show that the
+trellis time increases from 0.09 s at N = 84 to 0.30 s at            The corresponding nonempty subproblem is
+N = 250, reflecting the approximately linear increase in the
+                                                                                                   X
+                                                                                −i
+                                                                              Pk,+ (L) = max             γjk bjk
+number of capacity-bounded regions. Over the same range, the                                 bjk ∈{0,1}
+                                                                                             j∈Uτ \{i} j∈Uτ \{i}
+BF time increases from 0.36 s to 13.67 s and the GA time                                                   X
+from 19.5 s to 54.2 s. The trellis is faster than BF in 26 of the                         subject to                 wj bjk ≤ L,
+27 instances, with a median speedup of 5.6 and a maximum                                                 j∈Uτ \{i}
+speedup of 63.7.
+                                                                                                           X
+                                                                                                                     bjk ≥ 1.      (47)
+   This scaling behavior results from decomposing the global                                             j∈Uτ \{i}
+service network into capacity-bounded regional problems. As
+N increases, CAP primarily increases the number of districts         Both are 0/1 knapsack problems. Since (27) queries Pk−i (qk −
+                                                                                  −i
+rather than allowing the size of each routing problem to grow        wi ) and Pk,+   (qk ) using the same incoming messages, their
+without limit. The trellis can therefore solve more small exact      Pareto frontiers are constructed in parallel and reused.
+subproblems with a modest increase in total time, whereas BF            The unrestricted frontier is initialized with the point (0, 0).
+remains sensitive to the combinatorial size of individual tours.     For every bin j ̸= i, the current frontier is merged with a
+The result explains why the proposed framework can preserve          shifted copy obtained by adding wj to each retained weight
+exact regional optimality while exhibiting substantially better      and γjk to its associated value. Points exceeding qk are
+runtime growth than exhaustive search over the tested network        removed, equal-weight points retain only the largest value,
+sizes.                                                               and dominated points are discarded. After all bins have been
+   Overall, the results show that embedding the capacity con-        processed, Pk−i (L) is obtained from the retained point with
+straint directly into the districting messages is necessary to       the largest value among those whose weight does not exceed
+preserve feasibility under heterogeneous, time-varying, and          L.
+                                                                               −i
+large-scale service demands. The exact regional trellis matches         For Pk,+  (L), a separate nonempty frontier is maintained
+brute-force routing over all tested instances while providing        in parallel and initialized as empty. For every bin j ̸= i,
+substantially lower computation time as the regional size in-        the current nonempty frontier is merged with its shifted copy
+creases. The coupled framework therefore combines capacity-          and the singleton point (wj , γjk ). The same capacity filtering,
+feasible district formation, exact regional routing, and practical   equal-weight reduction, and dominance pruning are applied.
+                                                                                                              −i
+online adaptation within a common distributed architecture.          After all bins have been processed, Pk,+    (L) is obtained from
+                                                                     the retained point with the largest value among those whose
+                                                                     weight does not exceed L. If no such point exists, then
+                                                                       −i
+                       V. C ONCLUSION                                Pk,+ (L) = −∞.
+                                                                        These are exact Nemhauser–Ullmann procedures [28] ap-
+   This paper developed a distributed message-passing frame-         plied to the unrestricted and nonempty selections, respectively.
+work that jointly determines capacity-feasible service districts
+and regional routes for smart waste collection. By coupling
+CAP with independent routing trellises through sparse bridg-                               A PPENDIX B
+ing factors, the framework allows route-level information                     D ERIVATION OF MESSAGE UPDATE RULES
+to influence district formation while retaining parallel and
+scalable computation. Simulations on a real urban road net-            For bik = 1, factor Ii forces every bih with h ̸= k to zero.
+work showed that the proposed method preserves capacity              For bik = 0, exactly one of the remaining variables must equal
+feasibility and exact regional routing performance over the          one. Thus,
+evaluated instances, while enabling substantially faster online                           X
+                                                                         µIi →bik (1) =         µbih →Ii (0)                   (48)
+replanning under changing operating conditions. These results
+                                                                                          h∈K\{k}
+demonstrate the potential of the proposed architecture as a                                 X
+practical basis for adaptive urban fleet coordination.                   µIi →bik (0) =             µbih →Ii (0) + max ωih .       (49)
+                                                                                                                      h∈K\{k}
+                                                                                          h∈K\{k}
+
+                                                                     Subtracting the second message from the first gives
+                       A PPENDIX A
+              PARETO -F RONTIER E VALUATION                                                 ηik = − max ωih .                      (50)
+                                                                                                       h∈K\{k}
+
+  The capacity factor Vk receives γjk from every bin variable          For bik = 1, the remaining capacity is qk − wi . For bik = 0,
+connected to vehicle k. After excluding bik , the unrestricted       the remaining bins may use the full capacity qk . After the
+                                                                                                                                                                        13
+
+
+
+                                                                                                        (k)
+state-zero terms common to both messages are removed,                                    Because Gh accumulates negative energy, this difference
+                                                                                         measures the energy-aware preference for including bin i
+                      µVk →bik (1) = Pk−i (qk − wi )                              (51)
+                                                                                         in the route of vehicle k after accounting for the incoming
+                      µVk →bik (0) = Pk−i (qk ).                                  (52)   assignment messages.
+Their difference yields                                                                                                 R EFERENCES
+                    ϕik = Pk−i (qk − wi ) − Pk−i (qk ).                           (53)    [1] Q. Gu, M. C. P. Sing, M. Jefferies, and S. Kanjanabootra, “Bridging the
+                                                                                              gap between smart cities and sustainability: Current practices and future
+                                                                                              trends,” Cities, vol. 159, Apr. 2025.
+                     A PPENDIX C                                                          [2] E. H. Houssein, M. A. Othman, W. M. Mohamed, and M. Younan,
+                                                                                              “Internet of things in smart cities: Comprehensive review, open issues,
+   S OFT- OUTPUT DYNAMIC PROGRAMMING ALGORITHM                                                and challenges,” IEEE Internet Things J., vol. 11, no. 21, pp. 34 941–
+                                                                                              34 952, Nov. 2024.
+   At replanning epoch τ , the vehicle-k trellis is initialized                           [3] I. Sosunova and J. Porras, “Iot-enabled smart waste management systems
+from the observed vehicle state yk (tτ ). Since no remaining                                  for smart cities: A systematic review,” IEEE Access, vol. 10, pp. 73 326–
+bin has yet been visited in the candidate route, the initial state                            73 363, Jul. 2022.
+                                                                                          [4] D. Kannan, S. Khademolqorani, N. Janatyan, and S. Alavi, “Smart
+message is                                                                                    waste management 4.0: The transition from a systematic review to an
+                                                                                              integrated framework,” Waste Manage., vol. 174, pp. 1–14, Feb. 2024.
+                                 h                    i⊤
+                            (k)
+                  0,       x0 = 0⊤ tτ yk (tτ )⊤                                           [5] P. Zoumpoulis, F. K. Konstantinidis, G. Tsimiklis, and A. Amditis,
+               
+    (k) (k)
+  α0 (x0 ) =                                                 (54)                             “Smart bins for enhanced resource recovery and sustainable urban waste
+                −∞, otherwise.                                                               practices in smart cities: A systematic literature review,” Cities, vol. 152,
+                                                                                              Sep. 2024.
+                                                                      (k)                 [6] M. Ghahramani, M. Zhou, A. Molter, and F. Pilla, “IoT-based route
+  Applying the max-sum factor update at Gh gives                                              recommendation for an intelligent waste management system,” IEEE
+    (k)     (k)                    (k)     (k)         (k)          (k)     (k)               Internet Things J., vol. 9, no. 14, pp. 11 883–11 892, Jul. 2022.
+  ψh (xh ) = max[Gh (xh−1 , xh ) + αh−1 (xh−1 )]. (55)                                    [7] B. Cao, X. Chen, Z. Lv, R. Li, and S. Fan, “Optimization of classified
+                       (k)
+                      xh−1                                                                    municipal waste collection based on the internet of connected vehicles,”
+                                                                                              IEEE Trans. Intell. Transp. Sys., vol. 22, no. 8, pp. 5364–5373, Aug.
+Since an internal state node has only two neighboring transi-                                 2021.
+tion factors, its forward output is                                                       [8] H. Wang et al., “Transportation route optimization of municipal solid
+                                                                                              waste based on improved ant colony algorithm in internet of vehicles,”
+      (k)     (k)            (k)     (k)                                                      IEEE Trans. Veh. Techn., vol. 74, no. 2, pp. 2129–2142, Jun. 2025.
+    αh (xh ) = ψh (xh ),                         h = 1, . . . , Hk,τ − 1.         (56)
+                                                                                          [9] Y. Lee, M. Bencekri, J. Kwak, I. Jeong, and S. Lee, “Electrification
+The terminal state similarly gives                                                            pathways toward transport decarbonization with a systematic review,”
+                                                                                              Clean Techn. Environ. Policy, vol. 27, pp. 7855–7877, Aug. 2025.
+                               (k)               (k)         (k)                         [10] S. Zhang et al., “Feasibility, cost and decarbonization potential of clean
+                       ζk (xHk,τ ) = ψHk,τ (xHk,τ ).                              (57)        pathways for heavy-duty road transportation,” Nature Rev. Clean Techn.,
+                                                                                              vol. 1, no. 12, pp. 846–860, Nov. 2025.
+   At Rk , the message to the terminal state maximizes over                              [11] C. Hess, A. G. Dragomir, K. F. Doerner, and D. Vigo, “Waste collection
+all adjacent assignment variables,                                                            routing: A survey on problems and methods,” Central Eur. J. Oper. Res.,
+                     "                              #                                         vol. 32, pp. 399–434, 2024.
+        (k)                      (k)
+                                          X                                              [12] D. Peña, B. Dorronsoro, and P. Ruiz, “Sustainable waste collection
+   λk (xHk,τ ) = max Rk (b:,k , xHk,τ ) +    ρik bik . (58)                                   optimization using electric vehicles,” Sustain. Cities Soc., vol. 105, no.
+                      b:,k
+                                                                   i∈Uτ                       105343, Jun. 2024.
+                                                                                         [13] T. A. Toffolo, T. Vidal, and T. Wauters, “Heuristics for vehicle routing
+This message becomes the terminal input of the backward                                       problems: Sequence or set optimization?” Comput. Oper. Res., vol. 105,
+recursion,                                                                                    pp. 118–131, May 2019.
+                                                                                         [14] M. A. del Cacho Estil-Les, A. M. Mangini, M. Roccotelli, and M. P.
+                        (k)          (k)                     (k)                              Fanti, “Electric vehicle routing optimization for postal delivery and
+                       ξHk,τ (xHk,τ ) = λk (xHk,τ ).                              (59)
+                                                                                              waste collection in smart cities,” IEEE Trans. Intell. Transp. Sys., vol. 26,
+Applying the max-sum factor update in the reverse direction                                   no. 3, pp. 3307–3323, Feb. 2025.
+                                                                                         [15] D. Saxena et al., “An intelligent multi-depot vehicle routing and manage-
+gives                                                                                         ment model for smart cities,” IEEE Trans. Intell. Transp. Sys., vol. 26,
+    (k)      (k)                     (k)       (k)       (k)          (k)   (k)               no. 6, pp. 7740–7754, Apr. 2025.
+  βh−1 (xh−1 ) = max[Gh (xh−1 , xh ) + ξh (xh )],                                 (60)   [16] S. Voigt, “A review and ranking of operators in adaptive large neighbor-
+                             (k)
+                        xh                                                                    hood search for vehicle routing problems,” Eur. J. Oper. Res., vol. 322,
+                                                                                              pp. 357–375, Apr. 2025.
+and the internal state update is                                                         [17] J. Zhao, M. Poon, V. Y. Tan, and Z. Zhang, “A hybrid genetic search
+      (k)     (k)        (k)         (k)                                                      and dynamic programming-based split algorithm for the multi-trip time-
+    ξh (xh ) = βh (xh ),                         h = 1, . . . , Hk,τ − 1.         (61)        dependent vehicle routing problem,” Eur. J. Oper. Res., vol. 317, no. 3,
+                                                                                              pp. 921–935, Sep. 2024.
+ Finally, fixing bik = b in the routing factor gives                                     [18] M. Mohammadi, G. Rahmanifar, M. Hajiaghaei-Keshteli, G. Fusco,
+                                                                                             C. Colombaroni, and A. Sherafat, “A dynamic approach for the multi-
+                                           (k)           (k)                                  compartment vehicle routing problem in waste management,” Renewable
+ µRk →bik (b) =      max       Rk (b:,k , xHk,τ ) + ζk (xHk,τ )                               Sustain. Energy Rev., vol. 184, no. 113526, Sep. 2023.
+                                     (k)
+                      b:,k \bik ,xH                                                      [19] Y. Ma, L. Liu, S. Huang, C. Cheng, and Z. Li, “Real-time optimization
+                                         k,τ
+                                                        X                                    for WEEE recycling routing problem with multiple service types,” J.
+                                                 +                  ρjk bjk .     (62)        Cleaner Prod., vol. 501, no. 145271, Apr. 2025.
+                                                                                         [20] J. J. Q. Yu, W. Yu, and J. Gu, “Online vehicle routing with neural
+                                                     j∈Uτ \{i}                                combinatorial optimization and deep reinforcement learning,” IEEE
+                                                                                              Trans. Intell. Transp. Sys., vol. 20, no. 10, pp. 3806–3817, Apr. 2019.
+The difference between the two conditioned maxima is                                     [21] A. Sobhanan, J. Park, J. Park, and C. Kwon, “Genetic algorithms with
+                                                                                              neural cost predictor for solving hierarchical vehicle routing problems,”
+                    δik = µRk →bik (1) − µRk →bik (0).                            (63)        Transp. Sci., vol. 59, no. 2, pp. 322–339, Sep. 2024.
+                                                                                  14
+
+
+
+[22] D. V. A. Nguyen, A. Gunawan, M. Misir, L. K. Hui, and P. Vansteen-
+     wegen, “Deep reinforcement learning for solving the stochastic e-waste
+     collection problem,” Eur. J. Oper. Res., vol. 327, pp. 309–325, Nov.
+     2025.
+[23] J. Zhou, Y. Wu, W. Song, Z. Cao, and J. Zhang, “Towards omni-
+     generalizable neural methods for vehicle routing problems,” in Proc.
+     41st Int. Conf. Mach. Learn., 2023.
+[24] B. J. Frey and D. Dueck, “Clustering by passing messages between data
+     points,” Sci., vol. 315, no. 5814, pp. 972–976, Feb. 2007.
+[25] F. R. Kschischang, B. J. Frey, and H.-A. Loeliger, “Factor graphs and
+     the sum-product algorithm,” IEEE Trans. Inf. Theory, vol. 47, no. 2, pp.
+     498–519, Feb. 2001.
+[26] J. Hagenauer and P. Hoeher, “A Viterbi algorithm with soft-decision
+     outputs and its applications,” in Proc. IEEE Global Telecommun. Conf.
+     Exhib., Nov. 1989, pp. 1680–1686.
+[27] Seoul Metropolitan Government, “Seoul Transport Operation and Infor-
+     mation Service (TOPIS),” [Online]. Available: https://topis.seoul.go.kr
+     (accessed Aug. 16, 2026).
+[28] G. L. Nemhauser and Z. Ullmann, “Discrete dynamic programming and
+     capital allocation,” Manage. Sci., vol. 15, no. 9, pp. 494–505, May 1969.
+
+Seungeui Byun (shoreview01@korea.ac.kr) received the B.S. degree from Ko-
+rea University, Seoul, South Korea, in 2026, where he is currently pursuing the
+M.S. degree with the School of Electrical Engineering. His research interests
+include probabilistic optimization and inference methods, integrated sensing
+and communications, semantic communications, and quantum computing.
+
+Hong Ki Kim (b9b13@gachon.ac.kr) received the B.S. and Ph.D. degrees
+from Korea University, Seoul, South Korea, in 2019 and 2025, respectively. He
+is currently with the College of IT Convergence, Gachon University, Seong-
+nam, South Korea. His research interests include distributed and probabilistic
+optimization, routing and planning for large-scale networked systems, and
+their applications to smart city infrastructure and dense urban networks.
+
+Sang Hyun Lee (sanghyunlee@korea.ac.kr) received the B.S. and M.S.
+degrees from the Korea Advanced Institute of Science and Technology in 1999
+and 2001, respectively, and the Ph.D. degree from the University of Texas at
+Austin in 2011. He is currently with the School of Electrical Engineering,
+Korea University, Seoul, Korea. His research interests include technologies
+of communication, optimization, and coding on applications of computing
+systems to wireless communications.
+

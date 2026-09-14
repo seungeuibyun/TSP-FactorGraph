@@ -39,6 +39,8 @@ def _solve(method: str, instance, args):
                 symmetry_dual_path=args.symmetry_dual_path,
                 vehicle_gauss_seidel=args.vehicle_gauss_seidel,
                 certified_route_messages=args.certified_route_messages,
+                global_assignment_trajectory=(
+                    args.global_assignment_trajectory),
             ),
         )
     if method == "nn":
@@ -155,6 +157,8 @@ def run(args: argparse.Namespace) -> pd.DataFrame:
                         "vehicle_gauss_seidel": args.vehicle_gauss_seidel,
                         "certified_route_messages": (
                             args.certified_route_messages),
+                        "global_assignment_trajectory": (
+                            args.global_assignment_trajectory),
                     },
                     "scopes": result.scopes,
                     "full_assignment_graph": result.full_assignment_graph,
@@ -183,7 +187,8 @@ def run(args: argparse.Namespace) -> pd.DataFrame:
     if expected <= set(frame["run_id"].astype(str)) and (
             tuple(args.hours) == tuple(range(24))
             and tuple(args.methods) == METHODS):
-        create_figures(output, args.figure_dir.resolve())
+        create_figures(
+            output, args.figure_dir.resolve(), route_dir=route_dir)
     return frame
 
 
@@ -228,6 +233,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_false")
     parser.add_argument("--vehicle-gauss-seidel", action="store_true")
     parser.add_argument("--certified-route-messages", action="store_true")
+    parser.add_argument("--global-assignment-trajectory", action="store_true")
     parser.add_argument("--oracle-slots", type=int, default=1)
     parser.add_argument("--resume", action="store_true")
     parser.add_argument(

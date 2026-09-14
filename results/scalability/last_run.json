@@ -1,0 +1,7 @@
+{
+  "config": "experiments\\scalability\\config.json",
+  "experiment": "scalability",
+  "completed_utc": "2026-09-12T07:46:44.729061+00:00",
+  "figures_only": false,
+  "parallel_jobs": 1
+}

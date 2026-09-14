@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "experiment": "scalability",
+  "description": "Ten-seed Monte Carlo nested N sweep using unrestricted assignment-to-trellis alternation with approximately 8.4 serviced bins per vehicle.",
+  "instance": {
+    "sizes": [84, 100, 120, 140, 160, 180, 200, 220, 240, 260, 280, 300, 350, 400, 450, 500],
+    "bins_per_vehicle": 8.4,
+    "start_hour": 11,
+    "seeds": [7, 17, 27, 37, 47, 57, 67, 77, 87, 97],
+    "bins_csv": "simul/scalability_bins_500.csv"
+  },
+  "methods": ["proposed", "nn", "aco", "pso", "ga"],
+  "solver": {
+    "max_rounds": 64,
+    "assignment_rounds": 1,
+    "damping": 0.7,
+    "tolerance": 0.001,
+    "improvement_tolerance": 1e-9,
+    "exact_global_limit": 14,
+    "maximum_exact_trellis_bins": 20,
+    "hypercube_radii": [1, 2, 4, 8, 12, 16, 24, 32],
+    "stagnation_patience": 8,
+    "canonicalize_vehicle_symmetry": false,
+    "symmetry_dual_path": false,
+    "vehicle_gauss_seidel": false,
+    "certified_route_messages": false,
+    "global_assignment_trajectory": true,
+    "oracle_slots": 3
+  },
+  "baselines": {
+    "ga_population": 100,
+    "ga_generations": 500,
+    "pso_particles": 60,
+    "pso_iterations": 200,
+    "aco_ants": 60,
+    "aco_iterations": 150
+  },
+  "execution": {"parallel_jobs": 1},
+  "resume": true,
+  "output": {
+    "results": "results/scalability",
+    "figures": "figures/scalability",
+    "csv": "scalability_runs.csv"
+  }
+}

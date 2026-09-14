@@ -71,6 +71,109 @@ def _configure_ieee_style() -> None:
     })
 
 
+def _boxed_legend(axis: plt.Axes, **kwargs: object):
+    legend = axis.legend(
+        frameon=True, fancybox=False, facecolor="white", edgecolor="0.15",
+        framealpha=1.0, borderpad=0.45, **kwargs)
+    legend.get_frame().set_linewidth(0.7)
+    return legend
+
+
+def _fit_legend_band(axis: plt.Axes, legend, data_upper: float) -> None:
+    """Leave only a narrow data-free gap directly below the legend."""
+
+    lower = axis.get_ylim()[0]
+    for _ in range(2):
+        axis.figure.canvas.draw()
+        renderer = axis.figure.canvas.get_renderer()
+        axes_box = axis.get_window_extent(renderer)
+        legend_box = legend.get_window_extent(renderer)
+        legend_bottom = (legend_box.y0 - axes_box.y0) / axes_box.height
+        data_ceiling = legend_bottom - 0.025
+        if data_ceiling <= 0.0:
+            raise ValueError("legend leaves no usable plotting area")
+        axis.set_ylim(
+            lower, lower + (float(data_upper) - lower) / data_ceiling)
+
+
+def _cloud_color(color: str) -> tuple[float, float, float]:
+    rgb = matplotlib.colors.to_rgb(color)
+    return tuple(0.18 * component + 0.82 for component in rgb)
+
+
+def _vehicle_time_summary(
+    frame: pd.DataFrame,
+    route_dir: Path,
+) -> pd.DataFrame:
+    records = []
+    missing = []
+    for row in frame.itertuples(index=False):
+        route_path = route_dir / f"{row.run_id}.json"
+        if not route_path.exists():
+            missing.append(route_path.name)
+            continue
+        payload = json.loads(route_path.read_text(encoding="utf-8"))
+        times = pd.Series(payload["vehicle_time_s"], dtype=float)
+        active_times = times[times > 0.0]
+        if active_times.empty:
+            raise ValueError(f"{route_path.name} has no active vehicle time")
+        expected_active = int(payload["run"]["active_vehicles"])
+        if len(active_times) != expected_active:
+            raise ValueError(
+                f"{route_path.name} records {expected_active} active vehicles "
+                f"but contains {len(active_times)} positive vehicle times")
+        records.append({
+            "run_id": row.run_id,
+            "method": row.method,
+            "start_hour": int(row.start_hour),
+            "active_vehicles": expected_active,
+            "vehicle_time_mean_s": float(active_times.mean()),
+            "vehicle_time_min_s": float(active_times.min()),
+            "vehicle_time_max_s": float(active_times.max()),
+        })
+    if missing:
+        raise ValueError(
+            "vehicle-time route details are incomplete; missing "
+            f"{missing[:8]}" + (" ..." if len(missing) > 8 else ""))
+    return pd.DataFrame(records).sort_values(["method", "start_hour"])
+
+
+def _draw_vehicle_time_distribution(
+    summary: pd.DataFrame,
+    output_stem: Path,
+) -> list[Path]:
+    fig, axis = plt.subplots(figsize=(3.5, 2.55), constrained_layout=True)
+    for method in EXPECTED_METHODS:
+        part = summary[summary["method"] == method].sort_values("start_hour")
+        axis.plot(
+            part["start_hour"], part["vehicle_time_mean_s"],
+            label=METHOD_LABELS[method], markevery=1,
+            markerfacecolor="white", markeredgewidth=0.75, zorder=2.0,
+            **METHOD_STYLES[method],
+        )
+    axis.set_xlabel("Starting hour")
+    axis.set_ylabel("Mean active-vehicle completion time (s)")
+    axis.set_xlim(0, 23)
+    axis.set_xticks([0, 4, 8, 12, 16, 20, 23])
+    data_lower = float(summary["vehicle_time_mean_s"].min())
+    data_upper = float(summary["vehicle_time_mean_s"].max())
+    lower_padding = 0.04 * (data_upper - data_lower)
+    axis.set_ylim(bottom=data_lower - lower_padding)
+    axis.grid(True, which="major", axis="both")
+    axis.tick_params(direction="in", top=True, right=True, width=0.6)
+    legend = _boxed_legend(
+        axis, ncol=2, loc="upper left", handlelength=2.3,
+        columnspacing=1.0)
+    _fit_legend_band(axis, legend, data_upper)
+    paths = []
+    for suffix in ("pdf", "eps", "png"):
+        path = output_stem.with_suffix(f".{suffix}")
+        fig.savefig(path, bbox_inches="tight", pad_inches=0.02)
+        paths.append(path)
+    plt.close(fig)
+    return paths
+
+
 def _validated_frame(input_csv: Path | list[Path]) -> pd.DataFrame:
     paths = [input_csv] if isinstance(input_csv, Path) else list(input_csv)
     frame = pd.concat([pd.read_csv(path) for path in paths], ignore_index=True)
@@ -114,10 +217,10 @@ def _draw_metric(frame: pd.DataFrame, column: str, ylabel: str,
     ax.set_xticks([0, 4, 8, 12, 16, 20, 23])
     ax.grid(True, which="major", axis="both")
     ax.tick_params(direction="in", top=True, right=True, width=0.6)
-    ax.legend(
-        ncol=3, loc="lower center", bbox_to_anchor=(0.5, 1.015),
-        frameon=False, handlelength=2.3, columnspacing=1.0,
-    )
+    legend = _boxed_legend(
+        ax, ncol=2, loc="upper left", handlelength=2.3,
+        columnspacing=1.0)
+    _fit_legend_band(ax, legend, frame[column].max())
     paths = []
     for suffix in ("pdf", "eps", "png"):
         path = output_stem.with_suffix(f".{suffix}")
@@ -145,14 +248,15 @@ def _draw_combined(frame: pd.DataFrame, output_stem: Path) -> list[Path]:
         ax.set_xlim(0, 23)
         ax.grid(True, which="major", axis="both")
         ax.tick_params(direction="in", top=True, right=True, width=0.6)
-        ax.text(0.02, 0.93, panel, transform=ax.transAxes,
-                ha="left", va="top")
+        ax.text(0.98, 0.93, panel, transform=ax.transAxes,
+                ha="right", va="top")
     axes[-1].set_xlabel("Starting hour")
     axes[-1].set_xticks([0, 4, 8, 12, 16, 20, 23])
-    axes[0].legend(
-        ncol=3, loc="lower center", bbox_to_anchor=(0.5, 1.015),
-        frameon=False, handlelength=2.3, columnspacing=1.0,
-    )
+    legend = _boxed_legend(
+        axes[0], ncol=2, loc="upper left", handlelength=2.3,
+        columnspacing=1.0)
+    first_column = next(iter(METRICS.values()))[0]
+    _fit_legend_band(axes[0], legend, frame[first_column].max())
     paths = []
     for suffix in ("pdf", "eps", "png"):
         path = output_stem.with_suffix(f".{suffix}")
@@ -163,8 +267,9 @@ def _draw_combined(frame: pd.DataFrame, output_stem: Path) -> list[Path]:
 
 
 def create_figures(input_csv: Path | list[Path], output_dir: Path,
-                   merged_output: Path | None = None) -> list[Path]:
-    """Validate 120 hourly runs and export three figures plus a combined panel."""
+                   merged_output: Path | None = None,
+                   route_dir: Path | None = None) -> list[Path]:
+    """Validate hourly runs and export metric and vehicle-time figures."""
 
     _configure_ieee_style()
     frame = _validated_frame(input_csv)
@@ -178,6 +283,18 @@ def create_figures(input_csv: Path | list[Path], output_dir: Path,
         outputs.extend(_draw_metric(
             frame, column, ylabel, output_dir / f"hourly_{name}_ieee"))
     outputs.extend(_draw_combined(frame, output_dir / "hourly_comparison_ieee"))
+    vehicle_time_summary = None
+    if route_dir is not None:
+        vehicle_time_summary = _vehicle_time_summary(
+            frame, route_dir.resolve())
+        vehicle_time_summary.to_csv(
+            route_dir.resolve().parent
+            / "hourly_vehicle_completion_time_summary.csv",
+            index=False,
+        )
+        outputs.extend(_draw_vehicle_time_distribution(
+            vehicle_time_summary,
+            output_dir / "hourly_vehicle_completion_time_ieee"))
 
     summary = (frame.groupby("method", as_index=False)
                .agg(energy_mean_kwh=("energy_kwh", "mean"),
@@ -209,6 +326,10 @@ def create_figures(input_csv: Path | list[Path], output_dir: Path,
             "mean across vehicles of initial battery minus route energy"),
         "formats": ["PDF", "EPS", "PNG"],
         "figure_width_in": 3.5,
+        "legend": "boxed upper-left inside a reserved data-free y-axis band",
+        "vehicle_time_figure": (
+            "mean active-vehicle completion time"
+            if vehicle_time_summary is not None else None),
         "raster_dpi": 600,
     }
     (output_dir / "figure_manifest.json").write_text(
@@ -226,13 +347,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--output-dir", type=Path,
         default=PACKAGE_ROOT / "figures" / "hourly_24h")
     parser.add_argument("--merged-output", type=Path)
+    parser.add_argument("--route-dir", type=Path)
     return parser
 
 
 def main(arguments: list[str] | None = None) -> None:
     args = build_parser().parse_args(arguments)
     for path in create_figures(
-            args.input, args.output_dir, merged_output=args.merged_output):
+            args.input, args.output_dir, merged_output=args.merged_output,
+            route_dir=args.route_dir):
         print(path)
 
 

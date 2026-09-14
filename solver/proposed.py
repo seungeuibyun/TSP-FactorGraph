@@ -7,6 +7,13 @@ import time
 
 import numpy as np
 
+from simul.energy import service_energy_kwh
+
+try:
+    from numba import njit
+except ImportError:  # pragma: no cover - optional accelerator
+    njit = None
+
 from .trellis import state_aware_trellis
 
 from .certified_route_factor import certified_route_max_marginals
@@ -37,6 +44,7 @@ class ProposedConfig:
     symmetry_dual_path: bool = True
     vehicle_gauss_seidel: bool = False
     certified_route_messages: bool = False
+    global_assignment_trajectory: bool = False
 
 
 @dataclass
@@ -139,6 +147,76 @@ class _MemberRoute:
     energy_kwh: float
     feasible: bool
     exact: bool
+
+
+if njit is not None:
+    @njit(cache=True)
+    def _best_insertion_tensor_kernel(
+        transition_energy, transition_time, bin_positions, demands,
+        route, inserted, start_position, depot_position, start_time_s,
+        initial_payload, capacity, battery, reserve, resolution,
+        service_energy, service_time, first_hour,
+    ):
+        """Evaluate every insertion position in one compiled loop."""
+
+        best_energy = np.inf
+        best_position = -1
+        route_size = route.size
+        for insertion_position in range(route_size + 1):
+            source = start_position
+            payload = initial_payload
+            used_energy = 0.0
+            used_time = 0.0
+            feasible = payload <= capacity + 1e-9
+            for step in range(route_size + 1):
+                if step == insertion_position:
+                    target_bin = inserted
+                elif step < insertion_position:
+                    target_bin = route[step]
+                else:
+                    target_bin = route[step - 1]
+                target = bin_positions[target_bin]
+                slot = int((start_time_s + used_time) // 3600.0) - first_hour
+                if slot < 0 or slot >= transition_energy.shape[0]:
+                    return np.inf, -2
+                payload_index = int(round(payload / resolution))
+                payload_index = min(max(payload_index, 0),
+                                    transition_energy.shape[1] - 1)
+                de = transition_energy[
+                    slot, payload_index, source, target]
+                dt = transition_time[
+                    slot, payload_index, source, target]
+                if not np.isfinite(de) or not np.isfinite(dt):
+                    feasible = False
+                    break
+                used_energy += de + service_energy
+                used_time += dt + service_time
+                payload += demands[target_bin]
+                if (payload > capacity + 1e-9
+                        or used_energy + reserve > battery + 1e-9):
+                    feasible = False
+                    break
+                source = target
+            if not feasible:
+                continue
+            slot = int((start_time_s + used_time) // 3600.0) - first_hour
+            if slot < 0 or slot >= transition_energy.shape[0]:
+                return np.inf, -2
+            payload_index = int(round(payload / resolution))
+            payload_index = min(max(payload_index, 0),
+                                transition_energy.shape[1] - 1)
+            de = transition_energy[
+                slot, payload_index, source, depot_position]
+            dt = transition_time[
+                slot, payload_index, source, depot_position]
+            if not np.isfinite(de) or not np.isfinite(dt):
+                continue
+            total = used_energy + de
+            if (total + reserve <= battery + 1e-9
+                    and total < best_energy - 1e-12):
+                best_energy = total
+                best_position = insertion_position
+        return best_energy, best_position
 
 
 def _greedy_member_route(instance: PaperInstance, vehicle: int,
@@ -408,6 +486,8 @@ def _certified_hypercube_messages(
     routes: list[list[int]] = []
     aggregate: dict[str, int | float | bool] = {
         "certified": True,
+        "joint_search": True,
+        "joint_searches": 0,
         "search_nodes": 0,
         "bound_prunes": 0,
         "capacity_prunes": 0,
@@ -426,7 +506,8 @@ def _certified_hypercube_messages(
             raise RuntimeError(
                 "certified route factor received an infeasible incumbent")
         routes.append(list(route.route))
-        for key in ("search_nodes", "bound_prunes", "capacity_prunes",
+        for key in ("joint_searches", "search_nodes", "bound_prunes",
+                    "capacity_prunes",
                     "route_evaluations", "unique_masks_evaluated"):
             aggregate[key] = int(aggregate[key]) + int(
                 marginal.statistics[key])
@@ -478,6 +559,7 @@ def _pruned_hypercube_messages(
     *,
     update_vehicles: tuple[int, ...] | None = None,
     previous_preferences: np.ndarray | None = None,
+    target_bins: tuple[int, ...] | None = None,
 ) -> tuple[np.ndarray, list[list[int]], dict]:
     """Evaluate exact local route marginals around an assignment vertex.
 
@@ -507,6 +589,11 @@ def _pruned_hypercube_messages(
             or any(vehicle < 0 or vehicle >= vehicles
                    for vehicle in active_vehicles)):
         raise ValueError("update_vehicles contains an invalid vehicle index")
+    active_bins = set(
+        range(n) if target_bins is None else (int(index)
+                                               for index in target_bins))
+    if any(index < 0 or index >= n for index in active_bins):
+        raise ValueError("target_bins contains an invalid bin index")
     sets = [set(np.flatnonzero(labels == vehicle).tolist())
             for vehicle in range(vehicles)]
     base = [route_oracle(vehicle, members)
@@ -545,7 +632,7 @@ def _pruned_hypercube_messages(
     all_bins = set(range(n))
     for vehicle in active_vehicles:
         members = sets[vehicle]
-        for index in all_bins - members:
+        for index in (all_bins - members) & active_bins:
             demand = float(instance.demand_kg[index])
             if loads[vehicle] + demand <= remaining_capacity[vehicle] + 1e-9:
                 # This must be a new fixed-mask trellis, not insertion into
@@ -624,6 +711,7 @@ def _pruned_hypercube_messages(
         "singleton_fallback_branches": singleton_fallback_branches,
         "sova_updated_edges": int(np.count_nonzero(finite)),
         "maximum_scope_size": max((len(members) for members in sets), default=0),
+        "targeted_external_bins": len(active_bins),
     }
     return preferences, [list(result.route) for result in base], statistics
 
@@ -917,6 +1005,576 @@ def _clustered_sova_messages(
             statistics["bundle_sova_updated_edges"] += len(assigned)
 
     return raw_delta, (routes if complete_routes else None), statistics
+
+
+def _best_fixed_order_insertion(
+    instance: PaperInstance,
+    vehicle: int,
+    route: tuple[int, ...],
+    index: int,
+    route_evaluator=None,
+) -> tuple[_MemberRoute, int]:
+    """Insert one bin at its best position without rebuilding a trellis.
+
+    The input order is an exact trellis path for its current terminal set.
+    Every insertion position is physically re-evaluated with the manuscript's
+    time-, payload-, and stop-and-go-dependent energy model.  Thus this is a
+    transparent boundary linearization of ``R_k``, not a surrogate distance
+    cost; the next assigned set is still solved by an exact trellis.
+    """
+
+    if int(index) in route:
+        raise ValueError("the inserted bin is already present in the route")
+    accelerated = getattr(route_evaluator, "best_insertion", None)
+    if accelerated is not None:
+        result = accelerated(vehicle, route, int(index))
+        if result is not None:
+            return result, len(route) + 1
+    best_route: tuple[int, ...] = ()
+    best_energy = float("inf")
+    feasible = False
+    evaluations = 0
+    for position in range(len(route) + 1):
+        candidate = (*route[:position], int(index), *route[position:])
+        evaluation = (
+            route_evaluator(vehicle, candidate)
+            if route_evaluator is not None
+            else evaluate_vehicle_route(instance, vehicle, candidate))
+        evaluations += 1
+        if (evaluation.feasible
+                and evaluation.energy_kwh < best_energy - 1e-12):
+            best_route = candidate
+            best_energy = float(evaluation.energy_kwh)
+            feasible = True
+    return _MemberRoute(
+        best_route, best_energy, feasible, False), evaluations
+
+
+def _tensor_route_evaluator(instance: PaperInstance):
+    """Return the common route evaluator backed directly by its cost tensor."""
+
+    network = instance.network
+    if not hasattr(network, "relevant_cost_tensor"):
+        return None
+    slot_count = max(1, int(getattr(
+        network, "active_relevant_slot_count", 1)))
+    nodes, node_index, energy, elapsed = network.relevant_cost_tensor(
+        instance.start_time_s, slot_count=slot_count)
+    del nodes
+    energy = np.asarray(energy, dtype=float)
+    elapsed = np.asarray(elapsed, dtype=float)
+    bin_positions = np.asarray(
+        [node_index[node] for node in instance.bin_nodes], dtype=int)
+    depot_position = int(node_index[instance.depot_node])
+    start_positions = np.asarray([
+        node_index[state.node] for state in instance.vehicle_states], dtype=int)
+    resolution = float(network.params.payload_state_kg)
+    maximum_payload_index = energy.shape[1] - 1
+    service_energy = float(service_energy_kwh(network.params))
+    service_time = float(network.params.service_time_s)
+    first_hour = int(instance.start_time_s // 3600.0)
+
+    def evaluate(vehicle: int, route: tuple[int, ...]):
+        state = instance.vehicle_states[vehicle]
+        source = int(start_positions[vehicle])
+        payload = float(state.payload_kg)
+        used_energy = 0.0
+        used_time = 0.0
+        feasible = payload <= instance.capacity_kg + 1e-9
+        targets = [int(bin_positions[index]) for index in route]
+        targets.append(depot_position)
+        for position, target in enumerate(targets):
+            slot = int((instance.start_time_s + used_time) // 3600.0) - first_hour
+            if slot < 0 or slot >= slot_count:
+                return evaluate_vehicle_route(instance, vehicle, route)
+            payload_index = int(round(payload / resolution))
+            payload_index = min(max(payload_index, 0), maximum_payload_index)
+            de = float(energy[slot, payload_index, source, target])
+            dt = float(elapsed[slot, payload_index, source, target])
+            if not np.isfinite(de) or not np.isfinite(dt):
+                return evaluate_vehicle_route(instance, vehicle, route)
+            used_energy += de
+            used_time += dt
+            source = target
+            if position < len(route):
+                used_energy += service_energy
+                used_time += service_time
+                payload += float(instance.demand_kg[route[position]])
+                feasible &= payload <= instance.capacity_kg + 1e-9
+                feasible &= (
+                    used_energy + instance.reserve_kwh
+                    <= state.battery_kwh + 1e-9)
+        feasible &= (
+            used_energy + instance.reserve_kwh
+            <= state.battery_kwh + 1e-9)
+
+        # _best_fixed_order_insertion needs only these two attributes.  Reuse
+        # _MemberRoute to avoid allocating the larger public evaluation type.
+        return _MemberRoute(
+            tuple(route), float(used_energy), bool(feasible), False)
+
+    if njit is not None:
+        def best_insertion(vehicle: int, route: tuple[int, ...], index: int):
+            state = instance.vehicle_states[vehicle]
+            local_route = np.asarray(route, dtype=np.int64)
+            best_energy, best_position = _best_insertion_tensor_kernel(
+                energy, elapsed, bin_positions,
+                np.asarray(instance.demand_kg, dtype=float), local_route,
+                int(index), int(start_positions[vehicle]), depot_position,
+                float(instance.start_time_s), float(state.payload_kg),
+                float(instance.capacity_kg), float(state.battery_kwh),
+                float(instance.reserve_kwh), resolution, service_energy,
+                service_time, first_hour)
+            if best_position == -2:
+                return None
+            if best_position < 0 or not np.isfinite(best_energy):
+                return _MemberRoute((), float("inf"), False, False)
+            position = int(best_position)
+            inserted_route = (
+                *route[:position], int(index), *route[position:])
+            return _MemberRoute(
+                tuple(inserted_route), float(best_energy), True, False)
+
+        evaluate.best_insertion = best_insertion
+
+    return evaluate
+
+
+def _linearized_boundary_sova_messages(
+    instance: PaperInstance,
+    labels: np.ndarray,
+    rho: np.ndarray,
+    config: ProposedConfig,
+    table_cache: dict[tuple[int, tuple[int, ...]], FullRouteTable],
+) -> tuple[np.ndarray, list[list[int]] | None, dict]:
+    """Couple a global assignment decode to small exact trellises.
+
+    For each currently assigned set ``S_k``, one exact FullRouteTable supplies
+    every on-support SOVA message.  A cut edge ``i not in S_k`` receives the
+    max-marginal on the unrestricted local boundary consisting of ``S_k``,
+    every ``S_k-r``, the empty set, and their feasible counterparts after
+    adding ``i``.  Added routes reuse the exact base/removal path and test all
+    insertion positions under the full operational energy model.  This keeps
+    all N-by-K assignment edges active while avoiding a new exponential
+    trellis for every add/exchange edge.
+    """
+
+    n, vehicles = instance.n_bins, instance.vehicles
+    if rho.shape != (n, vehicles):
+        raise ValueError(f"rho must have shape {(n, vehicles)}, got {rho.shape}")
+    raw_delta = np.full((n, vehicles), HARD_NEGATIVE, dtype=float)
+    remaining_capacity = _remaining_capacity(instance)
+    all_bins = set(range(n))
+    routes: list[list[int]] = []
+    complete_routes = True
+    route_evaluator = _tensor_route_evaluator(instance)
+    statistics = {
+        "full_route_tables_built": 0,
+        "full_route_table_hits": 0,
+        "bundle_trellis_masks_built": 0,
+        "bundle_sova_updated_edges": 0,
+        "boundary_sova_updated_edges": 0,
+        "boundary_direct_candidates": 0,
+        "boundary_exchange_candidates": 0,
+        "boundary_singleton_candidates": 0,
+        "boundary_route_evaluations": 0,
+        "boundary_feasible_candidates": 0,
+        "oversize_path_fallbacks": 0,
+        "oversize_path_sova_updated_edges": 0,
+        "sova_updated_edges": 0,
+        "maximum_scope_size": 0,
+    }
+
+    for vehicle in range(vehicles):
+        assigned = tuple(sorted(
+            int(index) for index in np.flatnonzero(labels == vehicle)))
+        key = (vehicle, assigned)
+        table = table_cache.get(key)
+        exact_table = (
+            len(assigned) <= min(config.maximum_exact_trellis_bins, 20))
+        if exact_table:
+            if table is None:
+                table = build_full_route_table(
+                    instance, vehicle, assigned,
+                    maximum_scope_size=min(
+                        config.maximum_exact_trellis_bins, 20))
+                table_cache[key] = table
+                statistics["full_route_tables_built"] += 1
+                statistics["bundle_trellis_masks_built"] += table.masks
+            else:
+                statistics["full_route_table_hits"] += 1
+        else:
+            table = None
+            statistics["oversize_path_fallbacks"] += 1
+        statistics["maximum_scope_size"] = max(
+            statistics["maximum_scope_size"], len(assigned))
+
+        full_mask = (1 << len(assigned)) - 1
+        if table is not None:
+            base_route_value = table.route_by_mask[full_mask]
+            base_energy = float(table.energy_by_mask[full_mask])
+        else:
+            overflow = _greedy_member_route(instance, vehicle, assigned)
+            base_route_value = overflow.route if overflow.feasible else None
+            base_energy = float(overflow.energy_kwh)
+        if base_route_value is None or not np.isfinite(base_energy):
+            complete_routes = False
+            routes.append([])
+            continue
+        base_route = tuple(int(index) for index in base_route_value)
+        routes.append(list(base_route))
+
+        if assigned and table is not None:
+            assigned_indices = np.asarray(assigned, dtype=int)
+            marginals = table.max_marginals(rho[assigned_indices, vehicle])
+            raw_delta[assigned_indices, vehicle] = marginals.delta
+            statistics["bundle_sova_updated_edges"] += len(assigned)
+
+        load = (float(instance.demand_kg[list(assigned)].sum())
+                if assigned else 0.0)
+        assigned_rho = (float(rho[np.asarray(assigned, dtype=int), vehicle].sum())
+                        if assigned else 0.0)
+        if table is not None:
+            empty_energy = float(table.energy_by_mask[0])
+        else:
+            empty_result = (
+                route_evaluator(vehicle, ())
+                if route_evaluator is not None
+                else evaluate_vehicle_route(instance, vehicle, ()))
+            empty_energy = float(empty_result.energy_kwh)
+
+        removal: dict[int, tuple[float, tuple[int, ...]]] = {}
+        best_zero = 0.0
+        for local, removed in enumerate(assigned):
+            if table is not None:
+                mask = full_mask ^ (1 << local)
+                removed_energy = float(table.energy_by_mask[mask])
+                removed_route = table.route_by_mask[mask]
+            else:
+                removed_route = tuple(
+                    index for index in base_route if index != removed)
+                removed_result = (
+                    route_evaluator(vehicle, removed_route)
+                    if route_evaluator is not None
+                    else evaluate_vehicle_route(
+                        instance, vehicle, removed_route))
+                removed_energy = float(removed_result.energy_kwh)
+            if removed_route is None or not np.isfinite(removed_energy):
+                continue
+            removal[removed] = (
+                removed_energy,
+                tuple(int(index) for index in removed_route))
+            best_zero = max(
+                best_zero,
+                base_energy - removed_energy - float(rho[removed, vehicle]))
+            if table is None:
+                raw_delta[removed, vehicle] = removed_energy - base_energy
+                statistics["oversize_path_sova_updated_edges"] += 1
+        if np.isfinite(empty_energy):
+            best_zero = max(
+                best_zero, base_energy - empty_energy - assigned_rho)
+
+        for index in sorted(all_bins - set(assigned)):
+            demand = float(instance.demand_kg[index])
+            best_one = -np.inf
+
+            if load + demand <= remaining_capacity[vehicle] + 1e-9:
+                inserted, evaluations = _best_fixed_order_insertion(
+                    instance, vehicle, base_route, index, route_evaluator)
+                statistics["boundary_direct_candidates"] += 1
+                statistics["boundary_route_evaluations"] += evaluations
+                if inserted.feasible:
+                    best_one = max(
+                        best_one, base_energy - inserted.energy_kwh)
+                    statistics["boundary_feasible_candidates"] += 1
+
+            for removed, (removed_energy, removed_route) in removal.items():
+                if (load - float(instance.demand_kg[removed]) + demand
+                        > remaining_capacity[vehicle] + 1e-9):
+                    continue
+                exchanged, evaluations = _best_fixed_order_insertion(
+                    instance, vehicle, removed_route, index, route_evaluator)
+                statistics["boundary_exchange_candidates"] += 1
+                statistics["boundary_route_evaluations"] += evaluations
+                if exchanged.feasible:
+                    best_one = max(
+                        best_one,
+                        base_energy - exchanged.energy_kwh
+                        - float(rho[removed, vehicle]))
+                    statistics["boundary_feasible_candidates"] += 1
+
+            # Empty/singleton is a genuine pair of R-factor vertices and
+            # prevents a cut edge from becoming permanently unreachable when
+            # more than one current bin must move in the global assignment.
+            singleton, evaluations = _best_fixed_order_insertion(
+                instance, vehicle, (), index, route_evaluator)
+            statistics["boundary_singleton_candidates"] += 1
+            statistics["boundary_route_evaluations"] += evaluations
+            if singleton.feasible and np.isfinite(empty_energy):
+                best_one = max(
+                    best_one,
+                    base_energy - singleton.energy_kwh - assigned_rho)
+                statistics["boundary_feasible_candidates"] += 1
+
+            if np.isfinite(best_one):
+                raw_delta[index, vehicle] = best_one - best_zero
+                statistics["boundary_sova_updated_edges"] += 1
+
+    finite = raw_delta > 0.5 * HARD_NEGATIVE
+    statistics["sova_updated_edges"] = int(np.count_nonzero(finite))
+    return raw_delta, (routes if complete_routes else None), statistics
+
+
+def _solve_global_alternating(
+    instance: PaperInstance,
+    config: ProposedConfig,
+    started: float,
+) -> ProposedResult:
+    """Strict assignment -> trellis alternation with a separate incumbent.
+
+    The unrestricted I/V decode determines the next trellis partition even
+    when its current physical energy is temporarily worse.  Only feasibility
+    gates the trajectory.  The best feasible plan is retained independently
+    for output, eliminating the former monotone local-search barrier.
+    """
+
+    n, vehicles = instance.n_bins, instance.vehicles
+    scopes = _full_scopes(instance)
+    eligible = np.ones((n, vehicles), dtype=bool)
+    remaining_capacity = _remaining_capacity(instance)
+    current_labels = _initial_assignment(
+        instance, _global_nearest_order(instance), None,
+        canonical_vehicle_symmetry=config.canonicalize_vehicle_symmetry)
+    state = initialize_messages(n, vehicles, eligible)
+    table_cache: dict[tuple[int, tuple[int, ...]], FullRouteTable] = {}
+    exact_route_oracle, exact_route_cache, exact_route_statistics = (
+        _fixed_set_trellis_oracle(instance, config))
+    visited_assignments = {
+        tuple(int(value) for value in current_labels)
+    }
+
+    raw_delta, current_routes, initial_statistics = (
+        _linearized_boundary_sova_messages(
+            instance, current_labels, state.rho, config, table_cache))
+    if current_routes is None:
+        raise RuntimeError("initial assignment has no feasible exact trellis")
+    current_evaluation = evaluate_routes(instance, current_routes)
+    if not current_evaluation.feasible:
+        raise RuntimeError("initial assignment is physically infeasible")
+    best_labels = current_labels.copy()
+    best_routes = [list(route) for route in current_routes]
+    best_evaluation = current_evaluation
+    state, initial_route_change = with_route_messages(
+        state, raw_delta, eligible, damping=1.0)
+    diagnostics: list[dict] = [{
+        "round": 0,
+        "outer_phase": "initial_assignment_then_exact_trellis_boundary_sova",
+        "trajectory_energy_kwh": current_evaluation.energy_kwh,
+        "candidate_energy_kwh": current_evaluation.energy_kwh,
+        "accepted_energy_kwh": best_evaluation.energy_kwh,
+        "best_energy_kwh": best_evaluation.energy_kwh,
+        "candidate_feasible": True,
+        "trajectory_advanced": True,
+        "best_updated": True,
+        "accepted": True,
+        "assignment_unchanged": True,
+        "assignment_revisited": False,
+        "exact_boundary_refinement": False,
+        "assignment_edges": int(eligible.sum()),
+        "assignment_message_change": 0.0,
+        "route_message_change": initial_route_change,
+        "message_change": initial_route_change,
+        "assigned_scope_sizes": [
+            int(np.count_nonzero(current_labels == vehicle))
+            for vehicle in range(vehicles)],
+        **initial_statistics,
+    }]
+
+    stable_rounds = 0
+    converged = False
+    rounds_completed = 0
+    for cooperative_round in range(1, config.max_rounds + 1):
+        rounds_completed = cooperative_round
+        (state, assignment_rounds, assignment_converged,
+         assignment_change) = _converge_assignment_phase(
+            instance, state, eligible, config)
+        previous_labels = current_labels.copy()
+        candidate_labels = decode_assignment(
+            state.belief, instance.demand_kg, remaining_capacity, eligible,
+            canonical_vehicle_symmetry=(
+                config.canonicalize_vehicle_symmetry),
+            require_nonempty=instance.nonempty_required)
+        labels_canonicalized = False
+        if config.canonicalize_vehicle_symmetry:
+            (candidate_labels, state, labels_canonicalized) = (
+                _canonicalize_identical_vehicle_state(
+                    instance, candidate_labels, state))
+
+        signature = tuple(int(value) for value in candidate_labels)
+        assignment_revisited = signature in visited_assignments
+        visited_assignments.add(signature)
+        candidate_delta, candidate_routes, trellis_statistics = (
+            _linearized_boundary_sova_messages(
+                instance, candidate_labels, state.rho, config,
+                table_cache))
+        changed_bins = tuple(int(index) for index in np.flatnonzero(
+            candidate_labels != previous_labels))
+        exact_faces_available = all(
+            int(np.count_nonzero(candidate_labels == vehicle))
+            <= min(config.maximum_exact_trellis_bins, 20)
+            for vehicle in range(vehicles))
+        exact_boundary_refinement = bool(
+            assignment_revisited and changed_bins and exact_faces_available)
+        if exact_boundary_refinement:
+            # The destination edge of every moved bin is already exact in the
+            # new assigned-set trellis.  Refine its source edge as well, so the
+            # complete assignment transition, not an arbitrary K-best subset,
+            # is fed back to I/V.  Unchanged N*K edges keep the inexpensive
+            # physical boundary linearization.
+            source_groups: dict[int, list[int]] = {}
+            for index in changed_bins:
+                source_groups.setdefault(
+                    int(previous_labels[index]), []).append(index)
+
+            # Reuse the exact full-mask and leave-one-out routes already
+            # present in each assigned-set FullRouteTable.  The exact oracle
+            # then builds trellises only for genuinely new source-edge
+            # add/exchange masks.
+            for vehicle in range(vehicles):
+                assigned = tuple(sorted(int(index) for index in np.flatnonzero(
+                    candidate_labels == vehicle)))
+                table = table_cache[(vehicle, assigned)]
+                full_mask = (1 << len(assigned)) - 1
+                for mask in (full_mask, *(full_mask ^ (1 << local)
+                                           for local in range(len(assigned)))):
+                    route_value = table.route_by_mask[mask]
+                    energy_value = float(table.energy_by_mask[mask])
+                    if route_value is None or not np.isfinite(energy_value):
+                        continue
+                    members = tuple(
+                        assigned[local] for local in range(len(assigned))
+                        if mask & (1 << local))
+                    exact_route_cache[(vehicle, members)] = _MemberRoute(
+                        tuple(int(value) for value in route_value),
+                        energy_value, True, True)
+
+            refinement_totals: dict[str, int | float] = {}
+            for vehicle, indices in source_groups.items():
+                candidate_delta, _, refinement_statistics = (
+                    _pruned_hypercube_messages(
+                        instance, candidate_labels, state.rho,
+                        exact_route_oracle,
+                        update_vehicles=(vehicle,),
+                        previous_preferences=candidate_delta,
+                        target_bins=tuple(indices)))
+                for key, value in refinement_statistics.items():
+                    if isinstance(value, (int, float, np.integer, np.floating)):
+                        refinement_totals[key] = (
+                            refinement_totals.get(key, 0) + value)
+            trellis_statistics.update({
+                f"transition_refinement_{key}": value
+                for key, value in refinement_totals.items()
+            })
+            trellis_statistics["transition_refinement_vehicles"] = len(
+                source_groups)
+            trellis_statistics["transition_refinement_bins"] = len(
+                changed_bins)
+            trellis_statistics["exact_route_cache_size"] = len(
+                exact_route_cache)
+            trellis_statistics["exact_route_calls"] = (
+                exact_route_statistics["exact"])
+        trellis_statistics["exact_boundary_refinement"] = (
+            exact_boundary_refinement)
+        candidate_evaluation = (
+            evaluate_routes(instance, candidate_routes)
+            if candidate_routes is not None else None)
+        candidate_feasible = bool(
+            candidate_evaluation is not None
+            and candidate_evaluation.feasible)
+
+        # Energy is deliberately not an acceptance test.  A feasible decoded
+        # assignment becomes the next trellis face, so coordinated multi-bin
+        # changes can cross a temporarily worse intermediate partition.
+        trajectory_advanced = candidate_feasible
+        if trajectory_advanced:
+            current_labels = candidate_labels
+            current_routes = candidate_routes
+            current_evaluation = candidate_evaluation
+            raw_delta = candidate_delta
+        else:
+            raw_delta, current_routes, trellis_statistics = (
+                _linearized_boundary_sova_messages(
+                    instance, current_labels, state.rho, config, table_cache))
+            current_evaluation = evaluate_routes(instance, current_routes)
+
+        state, route_change = with_route_messages(
+            state, raw_delta, eligible, config.damping)
+        best_updated = bool(
+            current_evaluation.energy_kwh
+            < best_evaluation.energy_kwh - config.improvement_tolerance)
+        if best_updated:
+            best_labels = current_labels.copy()
+            best_routes = [list(route) for route in current_routes]
+            best_evaluation = current_evaluation
+
+        assignment_unchanged = np.array_equal(
+            current_labels, previous_labels)
+        message_change = max(assignment_change, route_change)
+        if (assignment_unchanged and assignment_converged
+                and message_change < config.tolerance):
+            stable_rounds += 1
+        else:
+            stable_rounds = 0
+        diagnostics.append({
+            "round": cooperative_round,
+            "outer_phase": (
+                "I_V_sweep_global_decode_then_exact_trellis_boundary_sova"),
+            "trajectory_energy_kwh": current_evaluation.energy_kwh,
+            "candidate_energy_kwh": (
+                None if candidate_evaluation is None
+                else candidate_evaluation.energy_kwh),
+            "accepted_energy_kwh": best_evaluation.energy_kwh,
+            "best_energy_kwh": best_evaluation.energy_kwh,
+            "candidate_feasible": candidate_feasible,
+            "trajectory_advanced": trajectory_advanced,
+            "best_updated": best_updated,
+            "accepted": best_updated,
+            "assignment_unchanged": bool(assignment_unchanged),
+            "assignment_revisited": assignment_revisited,
+            "assignment_inner_rounds": assignment_rounds,
+            "assignment_converged": assignment_converged,
+            "vehicle_labels_canonicalized": labels_canonicalized,
+            "assignment_message_change": assignment_change,
+            "route_message_change": route_change,
+            "message_change": message_change,
+            "assignment_message_residual": assignment_change,
+            "route_message_residual": route_change,
+            "message_residual": message_change,
+            "stable_rounds": stable_rounds,
+            "assignment_edges": int(eligible.sum()),
+            "unrestricted_decode_evaluated": True,
+            "unrestricted_candidate_reassignments": int(np.count_nonzero(
+                candidate_labels != previous_labels)),
+            "assigned_scope_sizes": [
+                int(np.count_nonzero(current_labels == vehicle))
+                for vehicle in range(vehicles)],
+            **trellis_statistics,
+        })
+        if stable_rounds >= 2:
+            diagnostics[-1]["convergence_reason"] = "message_tolerance"
+            converged = True
+            break
+
+    return ProposedResult(
+        method="proposed", routes=best_routes,
+        evaluation=best_evaluation,
+        runtime_s=time.perf_counter() - started,
+        labels=best_labels, scopes=scopes,
+        exact_global_factor_graph=False,
+        full_assignment_graph=True,
+        route_message_mode="global_assignment_boundary_sova",
+        rounds=rounds_completed, converged=converged,
+        messages=state, diagnostics=diagnostics)
 
 
 def _cavity_sova_messages(
@@ -1369,6 +2027,12 @@ def _solve_dynamic_full_assignment(instance: PaperInstance,
                                    started: float) -> ProposedResult:
     """Alternate full P2 decoding with assignment-pruned bundle SOVA."""
 
+    if (config.global_assignment_trajectory
+            and not config.certified_route_messages
+            and not config.vehicle_gauss_seidel
+            and config.fixed_factor_epoch_rounds == 1):
+        return _solve_global_alternating(instance, config, started)
+
     n, vehicles = instance.n_bins, instance.vehicles
     if config.stagnation_patience < 1:
         raise ValueError("stagnation_patience must be positive")
@@ -1737,6 +2401,13 @@ def solve_proposed(instance: PaperInstance,
                  or config.fixed_factor_epoch_rounds > 1)):
         raise ValueError(
             "certified route messages require the direct parallel R update")
+    if (config.global_assignment_trajectory
+            and (config.certified_route_messages
+                 or config.vehicle_gauss_seidel
+                 or config.fixed_factor_epoch_rounds > 1)):
+        raise ValueError(
+            "global_assignment_trajectory is a complete alternating schedule "
+            "and cannot be combined with another route-update schedule")
     if (not config.hypercube_radii
             or any(int(radius) < 1 for radius in config.hypercube_radii)):
         raise ValueError("hypercube_radii must contain positive integers")
@@ -1779,7 +2450,9 @@ def solve_proposed(instance: PaperInstance,
         selected.rounds += rejected.rounds
         selected.runtime_s = time.perf_counter() - started
         selected.route_message_mode = (
-            "dual_labeled_canonical_bundle_sova")
+            "dual_labeled_canonical_global_assignment_boundary_sova"
+            if config.global_assignment_trajectory
+            else "dual_labeled_canonical_bundle_sova")
         selected.diagnostics[-1]["selected_dual_path_branch"] = (
             selected_branch)
         return selected

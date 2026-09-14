@@ -269,6 +269,8 @@ def _solve(method: str, instance: PaperInstance, seed: int,
                 symmetry_dual_path=args.symmetry_dual_path,
                 vehicle_gauss_seidel=args.vehicle_gauss_seidel,
                 certified_route_messages=args.certified_route_messages,
+                global_assignment_trajectory=(
+                    args.global_assignment_trajectory),
             ),
         )
     if method == "nn":
@@ -1293,6 +1295,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_false")
     parser.add_argument("--vehicle-gauss-seidel", action="store_true")
     parser.add_argument("--certified-route-messages", action="store_true")
+    parser.add_argument("--global-assignment-trajectory", action="store_true")
     parser.add_argument(
         "--skip-figures", action="store_true",
         help="skip per-seed figures when a batch-level plot will be produced")

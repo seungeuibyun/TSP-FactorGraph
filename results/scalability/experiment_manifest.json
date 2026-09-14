@@ -1,0 +1,37 @@
+{
+  "sizes": [
+    84,
+    100,
+    120,
+    140,
+    160,
+    180,
+    200,
+    220,
+    240,
+    260,
+    280,
+    300,
+    350,
+    400,
+    450,
+    500
+  ],
+  "seeds": [
+    7
+  ],
+  "methods": [
+    "proposed",
+    "nn",
+    "aco",
+    "pso",
+    "ga"
+  ],
+  "start_hour": 11,
+  "bins_per_vehicle_target": 8.4,
+  "vehicle_rounding": "nearest integer, half upward",
+  "bins_csv": "simul/scalability_bins_500.csv",
+  "expected_runs": 80,
+  "completed_runs": 80,
+  "complete": true
+}

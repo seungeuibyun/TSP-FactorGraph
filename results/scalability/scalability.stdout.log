@@ -1,0 +1,49 @@
+RUN C:\Users\guild\.conda\envs\tsp\python.exe -m scripts.scalability --sizes 84 100 120 140 160 180 200 220 240 260 280 300 350 400 450 500 --bins-per-vehicle 8.4 --start-hour 11 --seeds 7 --methods proposed nn aco pso ga --bins-csv C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\simul\scalability_bins_500.csv --output C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\results\scalability\scalability_runs.csv --figure-dir C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\figures\scalability --max-rounds 32 --assignment-rounds 24 --damping 0.5 --tolerance 0.001 --improvement-tolerance 1e-09 --exact-global-limit 14 --maximum-exact-trellis-bins 84 --stagnation-patience 8 --oracle-slots 3 --hypercube-radii 1 2 4 8 12 16 24 32 --ga-population 100 --ga-generations 500 --pso-particles 60 --pso-iterations 200 --aco-ants 60 --aco-iterations 150 --resume
+SKIP N=84, K=10, seed=7 (all methods complete)
+SKIP N=100, K=12, seed=7 (all methods complete)
+SKIP N=120, K=14, seed=7 (all methods complete)
+SKIP N=140, K=17, seed=7 (all methods complete)
+SKIP N=160, K=19, seed=7 (all methods complete)
+SKIP N=180, K=21, seed=7 (all methods complete)
+DONE proposed_n200_k24_h11_s7: E=417.200 kWh, solver=6955.43 s, oracle=39.73 s, feasible=True
+DONE nn_n200_k24_h11_s7: E=483.456 kWh, solver=2.98 s, oracle=39.73 s, feasible=True
+DONE aco_n200_k24_h11_s7: E=413.104 kWh, solver=76.37 s, oracle=39.73 s, feasible=True
+DONE pso_n200_k24_h11_s7: E=476.101 kWh, solver=86.26 s, oracle=39.73 s, feasible=True
+DONE ga_n200_k24_h11_s7: E=463.958 kWh, solver=115.03 s, oracle=39.73 s, feasible=True
+FIGURES UPDATED through N=200: scalability_runtime_ieee.pdf, scalability_runtime_ieee.eps, scalability_runtime_ieee.png, scalability_energy_per_bin_ieee.pdf, scalability_energy_per_bin_ieee.eps, scalability_energy_per_bin_ieee.png
+DONE proposed_n220_k26_h11_s7: E=462.542 kWh, solver=11611.88 s, oracle=40.61 s, feasible=True
+DONE nn_n220_k26_h11_s7: E=506.651 kWh, solver=3.71 s, oracle=40.61 s, feasible=True
+DONE aco_n220_k26_h11_s7: E=437.911 kWh, solver=88.97 s, oracle=40.61 s, feasible=True
+DONE pso_n220_k26_h11_s7: E=496.659 kWh, solver=108.38 s, oracle=40.61 s, feasible=True
+DONE ga_n220_k26_h11_s7: E=481.060 kWh, solver=124.23 s, oracle=40.61 s, feasible=True
+FIGURES UPDATED through N=220: scalability_runtime_ieee.pdf, scalability_runtime_ieee.eps, scalability_runtime_ieee.png, scalability_energy_per_bin_ieee.pdf, scalability_energy_per_bin_ieee.eps, scalability_energy_per_bin_ieee.png
+DONE proposed_n240_k29_h11_s7: E=520.832 kWh, solver=11599.44 s, oracle=42.85 s, feasible=True
+DONE nn_n240_k29_h11_s7: E=556.019 kWh, solver=5.05 s, oracle=42.85 s, feasible=True
+DONE aco_n240_k29_h11_s7: E=495.398 kWh, solver=109.13 s, oracle=42.85 s, feasible=True
+DONE pso_n240_k29_h11_s7: E=537.635 kWh, solver=138.11 s, oracle=42.85 s, feasible=True
+DONE ga_n240_k29_h11_s7: E=535.359 kWh, solver=155.88 s, oracle=42.85 s, feasible=True
+FIGURES UPDATED through N=240: scalability_runtime_ieee.pdf, scalability_runtime_ieee.eps, scalability_runtime_ieee.png, scalability_energy_per_bin_ieee.pdf, scalability_energy_per_bin_ieee.eps, scalability_energy_per_bin_ieee.png
+DONE proposed_n260_k31_h11_s7: E=548.534 kWh, solver=15468.67 s, oracle=46.18 s, feasible=True
+DONE nn_n260_k31_h11_s7: E=622.389 kWh, solver=6.16 s, oracle=46.18 s, feasible=True
+DONE aco_n260_k31_h11_s7: E=527.340 kWh, solver=121.51 s, oracle=46.18 s, feasible=True
+DONE pso_n260_k31_h11_s7: E=607.137 kWh, solver=162.24 s, oracle=46.18 s, feasible=True
+DONE ga_n260_k31_h11_s7: E=576.621 kWh, solver=199.09 s, oracle=46.18 s, feasible=True
+FIGURES UPDATED through N=260: scalability_runtime_ieee.pdf, scalability_runtime_ieee.eps, scalability_runtime_ieee.png, scalability_energy_per_bin_ieee.pdf, scalability_energy_per_bin_ieee.eps, scalability_energy_per_bin_ieee.png
+DONE proposed_n280_k33_h11_s7: E=605.441 kWh, solver=11953.04 s, oracle=50.39 s, feasible=True
+DONE nn_n280_k33_h11_s7: E=658.789 kWh, solver=7.54 s, oracle=50.39 s, feasible=True
+DONE aco_n280_k33_h11_s7: E=582.765 kWh, solver=137.74 s, oracle=50.39 s, feasible=True
+DONE pso_n280_k33_h11_s7: E=643.021 kWh, solver=190.94 s, oracle=50.39 s, feasible=True
+DONE ga_n280_k33_h11_s7: E=618.750 kWh, solver=247.70 s, oracle=50.39 s, feasible=True
+FIGURES UPDATED through N=280: scalability_runtime_ieee.pdf, scalability_runtime_ieee.eps, scalability_runtime_ieee.png, scalability_energy_per_bin_ieee.pdf, scalability_energy_per_bin_ieee.eps, scalability_energy_per_bin_ieee.png
+DONE proposed_n300_k36_h11_s7: E=622.485 kWh, solver=11180.10 s, oracle=54.11 s, feasible=True
+DONE nn_n300_k36_h11_s7: E=707.373 kWh, solver=9.33 s, oracle=54.11 s, feasible=True
+DONE aco_n300_k36_h11_s7: E=611.392 kWh, solver=172.71 s, oracle=54.11 s, feasible=True
+DONE pso_n300_k36_h11_s7: E=699.447 kWh, solver=209.37 s, oracle=54.11 s, feasible=True
+DONE ga_n300_k36_h11_s7: E=658.402 kWh, solver=269.71 s, oracle=54.11 s, feasible=True
+FIGURES UPDATED through N=300: scalability_runtime_ieee.pdf, scalability_runtime_ieee.eps, scalability_runtime_ieee.png, scalability_energy_per_bin_ieee.pdf, scalability_energy_per_bin_ieee.eps, scalability_energy_per_bin_ieee.png
+DONE proposed_n350_k42_h11_s7: E=731.472 kWh, solver=27761.74 s, oracle=64.28 s, feasible=True
+DONE nn_n350_k42_h11_s7: E=781.790 kWh, solver=17.48 s, oracle=64.28 s, feasible=True
+DONE aco_n350_k42_h11_s7: E=696.532 kWh, solver=285.50 s, oracle=64.28 s, feasible=True
+DONE pso_n350_k42_h11_s7: E=773.895 kWh, solver=362.64 s, oracle=64.28 s, feasible=True
+DONE ga_n350_k42_h11_s7: E=764.678 kWh, solver=433.09 s, oracle=64.28 s, feasible=True
+FIGURES UPDATED through N=350: scalability_runtime_ieee.pdf, scalability_runtime_ieee.eps, scalability_runtime_ieee.png, scalability_energy_per_bin_ieee.pdf, scalability_energy_per_bin_ieee.eps, scalability_energy_per_bin_ieee.png

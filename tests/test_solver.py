@@ -107,6 +107,32 @@ class SolverTests(unittest.TestCase):
         np.testing.assert_allclose(
             actual.exclude_score, expected.exclude_score, atol=1e-10)
         self.assertTrue(actual.statistics["certified"])
+        self.assertTrue(actual.statistics["joint_search"])
+        self.assertEqual(actual.statistics["joint_searches"], 1)
+
+    def test_joint_certified_messages_match_random_full_tables(self):
+        instance = tiny_instance(n=6, vehicles=2, capacity_kg=300.0)
+        table = build_full_route_table(instance, 0, tuple(range(6)))
+
+        def oracle(vehicle, members):
+            self.assertEqual(vehicle, 0)
+            route = table.route_for_members(set(members))
+            energy = table.energy_for_members(set(members))
+            return SimpleNamespace(
+                feasible=route is not None and np.isfinite(energy),
+                energy_kwh=energy,
+            )
+
+        for seed in range(10):
+            rho = np.random.default_rng(seed).normal(0.0, 4.0, size=6)
+            expected = table.max_marginals(rho)
+            actual = certified_route_max_marginals(
+                instance, 0, rho, oracle, seed_sets=((0, 2, 4),))
+            np.testing.assert_allclose(actual.delta, expected.delta, atol=1e-10)
+            np.testing.assert_allclose(
+                actual.include_score, expected.include_score, atol=1e-10)
+            np.testing.assert_allclose(
+                actual.exclude_score, expected.exclude_score, atol=1e-10)
 
     def test_certified_full_cube_solver_mode_is_feasible(self):
         instance = tiny_instance(n=6, vehicles=2, capacity_kg=300.0)
@@ -501,6 +527,50 @@ class SolverTests(unittest.TestCase):
         self.assertEqual(result.rounds, maximum_rounds)
         self.assertFalse(result.converged)
         self.assertTrue(result.evaluation.feasible)
+
+    def test_global_assignment_trajectory_keeps_all_edges_and_best_plan(self):
+        instance = tiny_instance()
+        result = solve_proposed(
+            instance,
+            ProposedConfig(
+                max_rounds=5, assignment_rounds=1,
+                damping=0.5, tolerance=0.0,
+                exact_global_limit=3, maximum_exact_trellis_bins=10,
+                canonicalize_vehicle_symmetry=False,
+                symmetry_dual_path=False,
+                global_assignment_trajectory=True))
+        self.assertEqual(
+            result.route_message_mode, "global_assignment_boundary_sova")
+        self.assertTrue(result.evaluation.feasible)
+        best = [row["best_energy_kwh"] for row in result.diagnostics]
+        self.assertTrue(all(
+            right <= left + 1e-12
+            for left, right in zip(best, best[1:])))
+        self.assertTrue(all(
+            row["sova_updated_edges"]
+            == instance.n_bins * instance.vehicles
+            for row in result.diagnostics))
+        self.assertTrue(all(
+            row.get("trajectory_advanced", True)
+            for row in result.diagnostics))
+
+    def test_global_assignment_trajectory_reports_oversize_path_fallback(self):
+        instance = tiny_instance(n=6, vehicles=1, capacity_kg=1000.0)
+        result = solve_proposed(
+            instance,
+            ProposedConfig(
+                max_rounds=1, assignment_rounds=1,
+                exact_global_limit=0, maximum_exact_trellis_bins=3,
+                canonicalize_vehicle_symmetry=False,
+                symmetry_dual_path=False,
+                global_assignment_trajectory=True))
+        self.assertTrue(result.evaluation.feasible)
+        self.assertTrue(all(
+            row["oversize_path_fallbacks"] == 1
+            for row in result.diagnostics))
+        self.assertTrue(all(
+            row["sova_updated_edges"] == instance.n_bins
+            for row in result.diagnostics))
 
     def test_symmetry_dual_path_keeps_best_incumbent(self):
         instance = tiny_instance()
