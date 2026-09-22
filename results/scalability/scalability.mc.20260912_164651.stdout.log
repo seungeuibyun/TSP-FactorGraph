@@ -745,3 +745,9 @@ DONE aco_n400_k48_h11_s57: E=780.424 kWh, solver=416.34 s, oracle=77.13 s, feasi
 DONE pso_n400_k48_h11_s57: E=896.000 kWh, solver=478.69 s, oracle=77.13 s, feasible=True
 DONE ga_n400_k48_h11_s57: E=884.234 kWh, solver=611.42 s, oracle=77.13 s, feasible=True
 FIGURES UPDATED after N=400, seed=57 (6/10 seeds at this N): scalability_runtime_ieee.pdf, scalability_runtime_ieee.eps, scalability_runtime_ieee.png, scalability_energy_per_bin_ieee.pdf, scalability_energy_per_bin_ieee.eps, scalability_energy_per_bin_ieee.png
+DONE proposed_n400_k48_h11_s67: E=783.931 kWh, solver=4442.81 s, oracle=79.47 s, feasible=True
+DONE nn_n400_k48_h11_s67: E=881.885 kWh, solver=27.37 s, oracle=79.47 s, feasible=True
+DONE aco_n400_k48_h11_s67: E=783.161 kWh, solver=387.81 s, oracle=79.47 s, feasible=True
+DONE pso_n400_k48_h11_s67: E=875.792 kWh, solver=561.56 s, oracle=79.47 s, feasible=True
+DONE ga_n400_k48_h11_s67: E=858.635 kWh, solver=632.07 s, oracle=79.47 s, feasible=True
+FIGURES UPDATED after N=400, seed=67 (7/10 seeds at this N): scalability_runtime_ieee.pdf, scalability_runtime_ieee.eps, scalability_runtime_ieee.png, scalability_energy_per_bin_ieee.pdf, scalability_energy_per_bin_ieee.eps, scalability_energy_per_bin_ieee.png

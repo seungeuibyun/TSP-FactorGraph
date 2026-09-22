@@ -218,7 +218,10 @@ def _scalability_pipeline(
         "--sizes", *map(str, instance["sizes"]),
         "--bins-per-vehicle", str(instance["bins_per_vehicle"]),
         "--start-hour", str(instance["start_hour"]),
-        "--seeds", *map(str, instance["seeds"]),
+        "--spatial-seeds", *map(str, instance["spatial_seeds"]),
+        "--demand-seeds", *map(str, instance["demand_seeds"]),
+        "--parallel-jobs", str(max(
+            1, int(config.get("execution", {}).get("parallel_jobs", 1)))),
         "--methods", *config["methods"],
         "--bins-csv", str((PROJECT_ROOT / instance["bins_csv"]).resolve()),
         "--output", str(output),

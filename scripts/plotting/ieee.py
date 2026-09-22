@@ -9,7 +9,10 @@ from pathlib import Path
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
+from scipy.interpolate import PchipInterpolator
+from scipy.special import ndtr
 
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[2]
@@ -104,8 +107,9 @@ def _cloud_color(color: str) -> tuple[float, float, float]:
 def _vehicle_time_summary(
     frame: pd.DataFrame,
     route_dir: Path,
-) -> pd.DataFrame:
-    records = []
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    summary_records = []
+    observation_records = []
     missing = []
     for row in frame.itertuples(index=False):
         route_path = route_dir / f"{row.run_id}.json"
@@ -113,29 +117,56 @@ def _vehicle_time_summary(
             missing.append(route_path.name)
             continue
         payload = json.loads(route_path.read_text(encoding="utf-8"))
-        times = pd.Series(payload["vehicle_time_s"], dtype=float)
-        active_times = times[times > 0.0]
-        if active_times.empty:
+        times = np.asarray(payload["vehicle_time_s"], dtype=float)
+        energies = np.asarray(payload["vehicle_energy_kwh"], dtype=float)
+        routes = payload["routes"]
+        if len(times) != len(routes) or len(energies) != len(routes):
+            raise ValueError(
+                f"{route_path.name} has inconsistent route/metric lengths")
+        active_indices = [
+            vehicle for vehicle, route in enumerate(routes) if len(route) > 0
+        ]
+        active_times = times[np.asarray(active_indices, dtype=int)]
+        if not len(active_times):
             raise ValueError(f"{route_path.name} has no active vehicle time")
         expected_active = int(payload["run"]["active_vehicles"])
         if len(active_times) != expected_active:
             raise ValueError(
                 f"{route_path.name} records {expected_active} active vehicles "
-                f"but contains {len(active_times)} positive vehicle times")
-        records.append({
+                f"but contains {len(active_times)} nonempty routes")
+        if np.any(active_times <= 0.0):
+            raise ValueError(
+                f"{route_path.name} has a nonpositive active-vehicle time")
+        active_energies = energies[np.asarray(active_indices, dtype=int)]
+        if np.any(active_energies <= 0.0):
+            raise ValueError(
+                f"{route_path.name} has nonpositive active-vehicle energy")
+        summary_records.append({
             "run_id": row.run_id,
             "method": row.method,
             "start_hour": int(row.start_hour),
             "active_vehicles": expected_active,
-            "vehicle_time_mean_s": float(active_times.mean()),
-            "vehicle_time_min_s": float(active_times.min()),
-            "vehicle_time_max_s": float(active_times.max()),
+            "vehicle_time_mean_s": float(np.mean(active_times)),
+            "vehicle_time_min_s": float(np.min(active_times)),
+            "vehicle_time_max_s": float(np.max(active_times)),
         })
+        observation_records.extend({
+            "run_id": row.run_id,
+            "method": row.method,
+            "start_hour": int(row.start_hour),
+            "vehicle": int(vehicle),
+            "completion_time_s": float(times[vehicle]),
+            "energy_kwh": float(energies[vehicle]),
+        } for vehicle in active_indices)
     if missing:
         raise ValueError(
             "vehicle-time route details are incomplete; missing "
             f"{missing[:8]}" + (" ..." if len(missing) > 8 else ""))
-    return pd.DataFrame(records).sort_values(["method", "start_hour"])
+    summary = pd.DataFrame(summary_records).sort_values(
+        ["method", "start_hour"])
+    observations = pd.DataFrame(observation_records).sort_values(
+        ["method", "start_hour", "vehicle"])
+    return summary, observations
 
 
 def _draw_vehicle_time_distribution(
@@ -167,6 +198,126 @@ def _draw_vehicle_time_distribution(
     _fit_legend_band(axis, legend, data_upper)
     paths = []
     for suffix in ("pdf", "eps", "png"):
+        path = output_stem.with_suffix(f".{suffix}")
+        fig.savefig(path, bbox_inches="tight", pad_inches=0.02)
+        paths.append(path)
+    plt.close(fig)
+    return paths
+
+
+def _draw_active_vehicle_cdf(
+    observations: pd.DataFrame,
+    column: str,
+    xlabel: str,
+    output_stem: Path,
+) -> list[Path]:
+    """Plot a smooth monotone CDF over all 24 hourly active-vehicle runs."""
+
+    fig, axis = plt.subplots(figsize=(3.5, 2.55), constrained_layout=True)
+    for method in EXPECTED_METHODS:
+        values = np.sort(observations.loc[
+            observations["method"] == method, column
+        ].to_numpy(dtype=float))
+        if not len(values):
+            raise ValueError(
+                f"no active-vehicle {column} values are available for {method}")
+        last_at_value = np.r_[
+            np.flatnonzero(values[:-1] != values[1:]), len(values) - 1
+        ]
+        support = np.r_[0.0, values[last_at_value]]
+        probability = np.r_[
+            0.0, (last_at_value + 1).astype(float) / len(values)
+        ]
+        interpolator = PchipInterpolator(
+            support, probability, extrapolate=False)
+        grid = np.linspace(
+            0.0, float(observations[column].max()) * 1.02, 1200)
+        curve = np.where(
+            grid <= support[-1], interpolator(np.minimum(grid, support[-1])),
+            1.0)
+        style = {
+            key: value for key, value in METHOD_STYLES[method].items()
+            if key != "marker"
+        }
+        axis.plot(
+            grid, np.clip(curve, 0.0, 1.0),
+            label=METHOD_LABELS[method], **style)
+    axis.set_xlabel(xlabel)
+    axis.set_ylabel("CDF")
+    axis.set_xlim(0.0, float(observations[column].max()) * 1.02)
+    axis.set_ylim(0.0, 1.0)
+    axis.set_yticks(np.linspace(0.0, 1.0, 6))
+    axis.grid(True, which="major", axis="both")
+    axis.tick_params(direction="in", top=True, right=True, width=0.6)
+    _boxed_legend(
+        axis, ncol=2, loc="upper left", handlelength=2.3,
+        columnspacing=1.0)
+    paths = []
+    for suffix in ("pdf", "png"):
+        path = output_stem.with_suffix(f".{suffix}")
+        fig.savefig(path, bbox_inches="tight", pad_inches=0.02)
+        paths.append(path)
+    plt.close(fig)
+    return paths
+
+
+def _common_kde_bandwidth(
+    observations: pd.DataFrame,
+    column: str,
+) -> float:
+    values = observations[column].to_numpy(dtype=float)
+    deviation = float(np.std(values, ddof=1))
+    if not np.isfinite(deviation) or deviation <= 0.0:
+        raise ValueError(f"cannot estimate a KDE bandwidth for {column}")
+    return deviation * len(values) ** (-1.0 / 5.0)
+
+
+def _draw_active_vehicle_kde_cdf(
+    observations: pd.DataFrame,
+    column: str,
+    xlabel: str,
+    output_stem: Path,
+) -> list[Path]:
+    """Plot a boundary-corrected Gaussian KDE-CDF with common bandwidth."""
+
+    bandwidth = _common_kde_bandwidth(observations, column)
+    upper = float(observations[column].max()) + 4.0 * bandwidth
+    grid = np.linspace(0.0, upper, 1200)
+    fig, axis = plt.subplots(figsize=(3.5, 2.55), constrained_layout=True)
+    for method in EXPECTED_METHODS:
+        values = observations.loc[
+            observations["method"] == method, column
+        ].to_numpy(dtype=float)
+        if not len(values):
+            raise ValueError(
+                f"no active-vehicle {column} values are available for {method}")
+        scaled_values = values / bandwidth
+        forward = ndtr(
+            (grid[:, None] - values[None, :]) / bandwidth
+        ) - ndtr(-scaled_values)[None, :]
+        reflected = ndtr(
+            (grid[:, None] + values[None, :]) / bandwidth
+        ) - ndtr(scaled_values)[None, :]
+        curve = np.mean(forward + reflected, axis=1)
+        style = {
+            key: value for key, value in METHOD_STYLES[method].items()
+            if key != "marker"
+        }
+        axis.plot(
+            grid, np.clip(curve, 0.0, 1.0),
+            label=METHOD_LABELS[method], **style)
+    axis.set_xlabel(xlabel)
+    axis.set_ylabel("CDF")
+    axis.set_xlim(0.0, upper)
+    axis.set_ylim(0.0, 1.0)
+    axis.set_yticks(np.linspace(0.0, 1.0, 6))
+    axis.grid(True, which="major", axis="both")
+    axis.tick_params(direction="in", top=True, right=True, width=0.6)
+    _boxed_legend(
+        axis, ncol=2, loc="upper left", handlelength=2.3,
+        columnspacing=1.0)
+    paths = []
+    for suffix in ("pdf", "png"):
         path = output_stem.with_suffix(f".{suffix}")
         fig.savefig(path, bbox_inches="tight", pad_inches=0.02)
         paths.append(path)
@@ -284,8 +435,9 @@ def create_figures(input_csv: Path | list[Path], output_dir: Path,
             frame, column, ylabel, output_dir / f"hourly_{name}_ieee"))
     outputs.extend(_draw_combined(frame, output_dir / "hourly_comparison_ieee"))
     vehicle_time_summary = None
+    vehicle_time_observations = None
     if route_dir is not None:
-        vehicle_time_summary = _vehicle_time_summary(
+        vehicle_time_summary, vehicle_time_observations = _vehicle_time_summary(
             frame, route_dir.resolve())
         vehicle_time_summary.to_csv(
             route_dir.resolve().parent
@@ -295,6 +447,26 @@ def create_figures(input_csv: Path | list[Path], output_dir: Path,
         outputs.extend(_draw_vehicle_time_distribution(
             vehicle_time_summary,
             output_dir / "hourly_vehicle_completion_time_ieee"))
+        outputs.extend(_draw_active_vehicle_cdf(
+            vehicle_time_observations,
+            "completion_time_s",
+            "Active-vehicle completion time (s)",
+            output_dir / "hourly_active_vehicle_completion_cdf_ieee"))
+        outputs.extend(_draw_active_vehicle_cdf(
+            vehicle_time_observations,
+            "energy_kwh",
+            "Active-vehicle energy consumption (kWh)",
+            output_dir / "hourly_active_vehicle_energy_cdf_ieee"))
+        outputs.extend(_draw_active_vehicle_kde_cdf(
+            vehicle_time_observations,
+            "completion_time_s",
+            "Active-vehicle completion time (s)",
+            output_dir / "hourly_active_vehicle_completion_kde_cdf_ieee"))
+        outputs.extend(_draw_active_vehicle_kde_cdf(
+            vehicle_time_observations,
+            "energy_kwh",
+            "Active-vehicle energy consumption (kWh)",
+            output_dir / "hourly_active_vehicle_energy_kde_cdf_ieee"))
 
     summary = (frame.groupby("method", as_index=False)
                .agg(energy_mean_kwh=("energy_kwh", "mean"),
@@ -330,6 +502,27 @@ def create_figures(input_csv: Path | list[Path], output_dir: Path,
         "vehicle_time_figure": (
             "mean active-vehicle completion time"
             if vehicle_time_summary is not None else None),
+        "vehicle_time_cdf": (
+            "monotone interpolation of the pooled active-vehicle empirical "
+            "CDF over the 24 hourly runs"
+            if vehicle_time_observations is not None else None),
+        "vehicle_time_cdf_samples_per_method": (
+            int(len(vehicle_time_observations) / len(EXPECTED_METHODS))
+            if vehicle_time_observations is not None else None),
+        "vehicle_energy_cdf": (
+            "monotone interpolation of the pooled active-vehicle energy "
+            "empirical CDF over the 24 hourly runs"
+            if vehicle_time_observations is not None else None),
+        "vehicle_kde_cdfs": (
+            "zero-boundary-reflected Gaussian KDE-CDFs using a common pooled "
+            "Scott bandwidth for each metric"
+            if vehicle_time_observations is not None else None),
+        "vehicle_kde_common_bandwidth": ({
+            "completion_time_s": _common_kde_bandwidth(
+                vehicle_time_observations, "completion_time_s"),
+            "energy_kwh": _common_kde_bandwidth(
+                vehicle_time_observations, "energy_kwh"),
+        } if vehicle_time_observations is not None else None),
         "raster_dpi": 600,
     }
     (output_dir / "figure_manifest.json").write_text(

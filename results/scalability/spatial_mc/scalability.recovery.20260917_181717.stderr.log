@@ -1,0 +1,18 @@
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\scripts\scalability.py", line 460, in <module>
+    main()
+  File "C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\scripts\scalability.py", line 456, in main
+    run(args)
+  File "C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\scripts\scalability.py", line 366, in run
+    incorporate(future.result())
+  File "C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\scripts\scalability.py", line 340, in incorporate
+    _write_outputs(existing_rows, output)
+  File "C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\scripts\scalability.py", line 112, in _write_outputs
+    _atomic_csv(summary, output.with_name(f"{output.stem}_summary.csv"))
+  File "C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\scripts\scalability.py", line 74, in _atomic_csv
+    temporary.replace(path)
+  File "C:\Users\guild\.conda\envs\tsp\Lib\pathlib.py", line 1376, in replace
+    os.replace(self, target)
+PermissionError: [WinError 5] Access is denied: 'C:\\Users\\guild\\Dropbox\\research\\code\\TSP_new_new\\TSP-FactorGraph\\results\\scalability\\spatial_mc\\.scalability_runs_summary.csv.21164.tmp' -> 'C:\\Users\\guild\\Dropbox\\research\\code\\TSP_new_new\\TSP-FactorGraph\\results\\scalability\\spatial_mc\\scalability_runs_summary.csv'

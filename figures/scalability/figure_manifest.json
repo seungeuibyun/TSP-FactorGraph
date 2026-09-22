@@ -1,6 +1,6 @@
 {
-  "source": "results/scalability/scalability_runs.csv",
-  "observations": 690,
+  "source": "results/scalability/spatial_mc/scalability_runs.csv",
+  "observations": 1295,
   "completed_sizes": [
     84,
     100,
@@ -14,10 +14,7 @@
     260,
     280,
     300,
-    350,
-    400,
-    450,
-    500
+    350
   ],
   "methods": [
     "proposed",
@@ -26,14 +23,26 @@
     "pso",
     "ga"
   ],
-  "runtime_metric": "oracle_prep_s + solver runtime_s",
-  "runtime_axis": "logarithmic",
-  "runtime_cloud": "mean plus or minus one sample standard deviation",
   "energy_metric": "fleet energy divided by N",
+  "total_energy_metric": "fleet energy consumption",
+  "makespan_metric": "maximum vehicle completion time",
   "energy_cloud": "mean plus or minus one sample standard deviation",
+  "makespan_cloud": "mean plus or minus one sample standard deviation",
+  "vehicle_cdf_population": "pooled active vehicles across all completed spatial-layout, demand-seed, and N instances",
+  "vehicle_cdf_samples": {
+    "proposed": 6238,
+    "nn": 6238,
+    "aco": 6238,
+    "pso": 6238,
+    "ga": 6238
+  },
+  "vehicle_kde_cdfs": "zero-boundary-reflected Gaussian KDE-CDFs using a common pooled Scott bandwidth for each metric",
+  "vehicle_kde_common_bandwidth": {
+    "completion_time_s": 159.14240494176423,
+    "energy_kwh": 1.5542207410039435
+  },
   "formats": [
     "PDF",
-    "EPS",
     "PNG"
   ]
 }

@@ -1,0 +1,19 @@
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\scripts\watch_scalability_results.py", line 92, in <module>
+  File "C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\scripts\watch_scalability_results.py", line 88, in main
+  File "C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\scripts\watch_scalability_results.py", line 53, in run
+  File "C:\Users\guild\.conda\envs\tsp\Lib\pathlib.py", line 1094, in glob
+    for p in selector.select_from(self):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\guild\.conda\envs\tsp\Lib\pathlib.py", line 169, in select_from
+    if not parent_path.is_dir():
+           ^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\guild\.conda\envs\tsp\Lib\pathlib.py", line 875, in is_dir
+    return S_ISDIR(self.stat().st_mode)
+                   ^^^^^^^^^^^
+  File "C:\Users\guild\.conda\envs\tsp\Lib\pathlib.py", line 840, in stat
+    return os.stat(self, follow_symlinks=follow_symlinks)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [WinError 5] Access is denied: 'C:\\Users\\guild\\Dropbox\\research\\code\\TSP_new_new\\TSP-FactorGraph\\results\\scalability\\spatial_mc\\shards'

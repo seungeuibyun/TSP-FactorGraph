@@ -1,0 +1,2 @@
+WATCH UPDATE rows=467 shards=123: scalability_energy_per_bin_ieee.pdf, scalability_energy_per_bin_ieee.png, scalability_total_energy_ieee.pdf, scalability_total_energy_ieee.png, scalability_makespan_ieee.pdf, scalability_makespan_ieee.png, scalability_vehicle_completion_cdf_ieee.pdf, scalability_vehicle_completion_cdf_ieee.png, scalability_vehicle_energy_cdf_ieee.pdf, scalability_vehicle_energy_cdf_ieee.png
+WATCH FINAL

@@ -1,48 +1,37 @@
 # Scalability experiment
 
-This experiment increases the number of service bins while keeping the average
-route cardinality close to 8.4 bins per vehicle. Vehicle counts use
-`floor(N / 8.4 + 0.5)`.
+This experiment increases the number of service bins from 84 to 350 while
+keeping the average route cardinality close to 8.4 bins per vehicle. Vehicle
+counts use `floor(N / 8.4 + 0.5)`.
 
-| N | K | N/K | Assignment edges N x K |
-|---:|---:|---:|---:|
-| 84 | 10 | 8.400 | 840 |
-| 100 | 12 | 8.333 | 1,200 |
-| 120 | 14 | 8.571 | 1,680 |
-| 140 | 17 | 8.235 | 2,380 |
-| 160 | 19 | 8.421 | 3,040 |
-| 180 | 21 | 8.571 | 3,780 |
-| 200 | 24 | 8.333 | 4,800 |
-| 220 | 26 | 8.462 | 5,720 |
-| 240 | 29 | 8.276 | 6,960 |
-| 260 | 31 | 8.387 | 8,060 |
-| 280 | 33 | 8.485 | 9,240 |
-| 300 | 36 | 8.333 | 10,800 |
-| 350 | 42 | 8.333 | 14,700 |
-| 400 | 48 | 8.333 | 19,200 |
-| 450 | 54 | 8.333 | 24,300 |
-| 500 | 60 | 8.333 | 30,000 |
+Ten deterministic spatial seeds independently permute the 500 valid candidate
+locations in `simul/scalability_bins_500.csv`. Within each spatial layout,
+larger N values extend the same prefix, so growth with N remains paired and
+nested. Two demand seeds are evaluated for each layout. The experiment
+therefore contains 20 instances per N and 1,300 solver runs in total:
+13 sizes x 10 layouts x 2 demand seeds x 5 methods.
 
-The first 84 rows of `simul/scalability_bins_500.csv` are the measured bin
-locations used by the other experiments. The remaining 416 locations are
-fixed-seed synthetic service points sampled from unique, depot-round-trip-
-reachable nodes in the same operational SUMO graph. Every size is a prefix of
-this file, so the instances are nested rather than independently resampled.
+The parent process uses two worker processes. Each worker owns one complete
+`(N, spatial seed, demand seed)` instance and evaluates all five methods using
+the same loaded instance and prepared energy oracle. This avoids duplicating
+the oracle within an instance and prevents concurrent writes to the combined
+CSV. Every completed method is first stored in an independent shard; the
+parent then merges shards into the combined CSV and refreshes the figures.
+Interrupted work resumes at method granularity.
 
-The primary outputs are solver runtime, oracle preparation time, their sum,
-energy per serviced bin, makespan, feasibility, convergence, and the realized
-minimum/maximum route cardinality. Runtime figures use a logarithmic y-axis.
+Generated layouts, shards, routes, logs, manifests, and combined CSV files are
+stored below `results/scalability/spatial_mc/`. Earlier fixed-layout results in
+`results/scalability/` are intentionally retained and are not mixed into this
+experiment.
 
-Run or resume the complete experiment from the repository root:
+Run or resume from the repository root in the `tsp` environment:
 
-```bash
-python -m scripts.run_experiment experiments/scalability/config.json
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/start_scalability_monte_carlo.ps1 `
+  -Python 'C:\Users\guild\.conda\envs\tsp\python.exe'
 ```
 
-The proposed N=84 run alone previously required roughly 23 minutes on the
-current machine. The full N=84,...,500 schedule should therefore be treated as
-a long, resumable batch. Each completed method/N/seed row is written
-immediately. After every N has finished for all configured methods and seeds,
-the cumulative runtime and energy figures are regenerated and atomically
-overwritten in `figures/scalability/` as EPS, PDF, and PNG files. A plotting
-error is reported in the log but does not stop the next N from running.
+The configured worker count is deliberately two because each large proposed
+instance can consume substantial memory. Increase `execution.parallel_jobs`
+only after checking available RAM; native numerical thread counts are fixed to
+one by the launcher to avoid CPU oversubscription.

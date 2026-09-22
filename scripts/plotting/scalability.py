@@ -11,6 +11,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from scipy.special import ndtr
 
 from .ieee import (
     METHOD_LABELS,
@@ -204,6 +205,121 @@ def _makespan_figure(summary: pd.DataFrame, methods: list[str],
     return _save(fig, stem)
 
 
+def _active_vehicle_samples(
+        frame: pd.DataFrame, route_dir: Path) -> dict[str, dict[str, list[float]]]:
+    samples = {
+        method: {"energy": [], "time": []}
+        for method in _method_sequence(frame)
+    }
+    for row in frame.itertuples(index=False):
+        route_path = route_dir / f"{row.run_id}.json"
+        if not route_path.exists():
+            continue
+        payload = json.loads(route_path.read_text(encoding="utf-8"))
+        routes = payload.get("routes", [])
+        energies = payload.get("vehicle_energy_kwh", [])
+        times = payload.get("vehicle_time_s", [])
+        if not (len(routes) == len(energies) == len(times)):
+            raise ValueError(f"inconsistent vehicle arrays in {route_path}")
+        for route, energy, completion_time in zip(routes, energies, times):
+            if route:
+                samples[row.method]["energy"].append(float(energy))
+                samples[row.method]["time"].append(float(completion_time))
+    return samples
+
+
+def _cdf_figure(samples: dict[str, dict[str, list[float]]], methods: list[str],
+                metric: str, xlabel: str, stem: Path) -> list[Path]:
+    fig, axis = plt.subplots(figsize=(3.5, 2.55), constrained_layout=True)
+    plotted = 0
+    for method in methods:
+        values = np.sort(np.asarray(samples[method][metric], dtype=float))
+        values = values[np.isfinite(values)]
+        if not len(values):
+            continue
+        probabilities = np.arange(1, len(values) + 1, dtype=float) / len(values)
+        axis.plot(
+            values, probabilities, label=METHOD_LABELS[method],
+            drawstyle="steps-post", **{
+                key: value for key, value in METHOD_STYLES[method].items()
+                if key != "marker"
+            })
+        plotted += 1
+    if not plotted:
+        plt.close(fig)
+        return []
+    axis.set_xlabel(xlabel)
+    axis.set_ylabel("CDF")
+    axis.set_ylim(0.0, 1.0)
+    axis.set_axisbelow(True)
+    axis.grid(True)
+    axis.tick_params(direction="in", top=True, right=True, width=0.6)
+    _boxed_legend(axis, loc="lower right", ncol=2, handlelength=2.0,
+                  columnspacing=0.9)
+    return _save(fig, stem)
+
+
+def _common_kde_bandwidth(
+        samples: dict[str, dict[str, list[float]]], methods: list[str],
+        metric: str) -> float:
+    pooled = np.concatenate([
+        np.asarray(samples[method][metric], dtype=float)
+        for method in methods
+    ])
+    pooled = pooled[np.isfinite(pooled)]
+    deviation = float(np.std(pooled, ddof=1))
+    if len(pooled) < 2 or not np.isfinite(deviation) or deviation <= 0.0:
+        raise ValueError(f"cannot estimate a KDE bandwidth for {metric}")
+    return deviation * len(pooled) ** (-1.0 / 5.0)
+
+
+def _kde_cdf_figure(
+        samples: dict[str, dict[str, list[float]]], methods: list[str],
+        metric: str, xlabel: str, stem: Path) -> tuple[list[Path], float]:
+    """Plot a zero-boundary-reflected Gaussian KDE-CDF."""
+
+    bandwidth = _common_kde_bandwidth(samples, methods, metric)
+    largest = max(
+        max(samples[method][metric])
+        for method in methods if samples[method][metric]
+    )
+    upper = float(largest) + 4.0 * bandwidth
+    grid = np.linspace(0.0, upper, 1200)
+    fig, axis = plt.subplots(figsize=(3.5, 2.55), constrained_layout=True)
+    for method in methods:
+        values = np.asarray(samples[method][metric], dtype=float)
+        values = values[np.isfinite(values)]
+        if not len(values):
+            continue
+        scaled_values = values / bandwidth
+        forward = (
+            ndtr((grid[:, None] - values[None, :]) / bandwidth)
+            - ndtr(-scaled_values)[None, :]
+        )
+        reflected = (
+            ndtr((grid[:, None] + values[None, :]) / bandwidth)
+            - ndtr(scaled_values)[None, :]
+        )
+        curve = np.mean(forward + reflected, axis=1)
+        axis.plot(
+            grid, np.clip(curve, 0.0, 1.0),
+            label=METHOD_LABELS[method], **{
+                key: value for key, value in METHOD_STYLES[method].items()
+                if key != "marker"
+            })
+    axis.set_xlabel(xlabel)
+    axis.set_ylabel("CDF")
+    axis.set_xlim(0.0, upper)
+    axis.set_ylim(0.0, 1.0)
+    axis.set_yticks(np.linspace(0.0, 1.0, 6))
+    axis.set_axisbelow(True)
+    axis.grid(True)
+    axis.tick_params(direction="in", top=True, right=True, width=0.6)
+    _boxed_legend(axis, loc="lower right", ncol=2, handlelength=2.0,
+                  columnspacing=0.9)
+    return _save(fig, stem), bandwidth
+
+
 def create_figures(input_csv: Path, output_dir: Path) -> list[Path]:
     _configure_ieee_style()
     frame, summary = _load(input_csv)
@@ -216,6 +332,21 @@ def create_figures(input_csv: Path, output_dir: Path) -> list[Path]:
         summary, methods, output_dir / "scalability_total_energy_ieee"))
     outputs.extend(_makespan_figure(
         summary, methods, output_dir / "scalability_makespan_ieee"))
+    route_samples = _active_vehicle_samples(frame, input_csv.parent / "routes")
+    outputs.extend(_cdf_figure(
+        route_samples, methods, "time", "Vehicle completion time (s)",
+        output_dir / "scalability_vehicle_completion_cdf_ieee"))
+    outputs.extend(_cdf_figure(
+        route_samples, methods, "energy", "Vehicle energy consumption (kWh)",
+        output_dir / "scalability_vehicle_energy_cdf_ieee"))
+    completion_kde_outputs, completion_bandwidth = _kde_cdf_figure(
+        route_samples, methods, "time", "Vehicle completion time (s)",
+        output_dir / "scalability_vehicle_completion_kde_cdf_ieee")
+    outputs.extend(completion_kde_outputs)
+    energy_kde_outputs, energy_bandwidth = _kde_cdf_figure(
+        route_samples, methods, "energy", "Vehicle energy consumption (kWh)",
+        output_dir / "scalability_vehicle_energy_kde_cdf_ieee")
+    outputs.extend(energy_kde_outputs)
     manifest = {
         "source": _portable_path(input_csv),
         "observations": len(frame),
@@ -226,6 +357,20 @@ def create_figures(input_csv: Path, output_dir: Path) -> list[Path]:
         "makespan_metric": "maximum vehicle completion time",
         "energy_cloud": "mean plus or minus one sample standard deviation",
         "makespan_cloud": "mean plus or minus one sample standard deviation",
+        "vehicle_cdf_population": (
+            "pooled active vehicles across all completed spatial-layout, "
+            "demand-seed, and N instances"),
+        "vehicle_cdf_samples": {
+            method: len(route_samples[method]["time"])
+            for method in methods
+        },
+        "vehicle_kde_cdfs": (
+            "zero-boundary-reflected Gaussian KDE-CDFs using a common pooled "
+            "Scott bandwidth for each metric"),
+        "vehicle_kde_common_bandwidth": {
+            "completion_time_s": completion_bandwidth,
+            "energy_kwh": energy_bandwidth,
+        },
         "formats": ["PDF", "PNG"],
     }
     manifest_path = output_dir / "figure_manifest.json"

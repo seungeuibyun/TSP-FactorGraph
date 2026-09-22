@@ -1,0 +1,18 @@
+sumo_hourly_cost_operational.csv       ← 실제 simulation 입력
+operational_depot.csv
+operational_edge_list.csv
+operational_cost_qc_summary.csv
+
+topis_sumo_mapping_final.csv
+topis_sumo_mapping_excluded.csv
+topis_sumo_edge_coverage.csv
+sumo_topis_piecewise_segments.csv
+sumo_topis_observed_edge_cost.csv
+
+CORE 15,604 edges
+LOCAL_SAME_CLASS   14,893 = 95.44%
+LOCAL_ANY_CLASS       711 =  4.56%
+MEDIAN_FALLBACK         0 =  0.00%
+OBSERVED                         1,197 ≈ 7.67%
+PARTIAL OBSERVED + IMPUTED        126 ≈ 0.81%
+IMPUTED                         14,281 ≈ 91.52%

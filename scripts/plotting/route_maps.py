@@ -341,7 +341,7 @@ def _draw_map(method: str, run: dict, instance,
                markeredgecolor="white", markeredgewidth=0.35,
                markersize=7.0, label="Depot"),
         Line2D([0], [0], color="0.10", linewidth=0.7, linestyle=":",
-               label="Capacity $Q$ (kg)"),
+               label=r"Capacity $\ell_{\max}$ (kg)"),
     ]
     legend = axis.legend(
         handles=handles, loc="lower right", ncol=1, frameon=True,

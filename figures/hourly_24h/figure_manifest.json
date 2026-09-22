@@ -45,5 +45,13 @@
   "figure_width_in": 3.5,
   "legend": "boxed upper-left inside a reserved data-free y-axis band",
   "vehicle_time_figure": "mean active-vehicle completion time",
+  "vehicle_time_cdf": "monotone interpolation of the pooled active-vehicle empirical CDF over the 24 hourly runs",
+  "vehicle_time_cdf_samples_per_method": 240,
+  "vehicle_energy_cdf": "monotone interpolation of the pooled active-vehicle energy empirical CDF over the 24 hourly runs",
+  "vehicle_kde_cdfs": "zero-boundary-reflected Gaussian KDE-CDFs using a common pooled Scott bandwidth for each metric",
+  "vehicle_kde_common_bandwidth": {
+    "completion_time_s": 216.53281001352397,
+    "energy_kwh": 1.883782871051189
+  },
   "raster_dpi": 600
 }

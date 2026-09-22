@@ -1,0 +1,14 @@
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\scripts\run_experiment.py", line 301, in <module>
+    main()
+  File "C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\scripts\run_experiment.py", line 297, in main
+    run(args.config, args.dry_run, args.figures_only)
+  File "C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\scripts\run_experiment.py", line 262, in run
+    _run(command, dry_run)
+  File "C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\scripts\run_experiment.py", line 244, in _run
+    subprocess.run(command, cwd=PROJECT_ROOT, check=True)
+  File "C:\Users\guild\.conda\envs\tsp\Lib\subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['C:\\Users\\guild\\.conda\\envs\\tsp\\python.exe', '-m', 'scripts.scalability', '--sizes', '84', '100', '120', '140', '160', '180', '200', '220', '240', '260', '280', '300', '350', '--bins-per-vehicle', '8.4', '--start-hour', '11', '--spatial-seeds', '107', '117', '127', '137', '147', '157', '167', '177', '187', '197', '--demand-seeds', '7', '17', '--parallel-jobs', '2', '--methods', 'proposed', 'nn', 'aco', 'pso', 'ga', '--bins-csv', 'C:\\Users\\guild\\Dropbox\\research\\code\\TSP_new_new\\TSP-FactorGraph\\simul\\scalability_bins_500.csv', '--output', 'C:\\Users\\guild\\Dropbox\\research\\code\\TSP_new_new\\TSP-FactorGraph\\results\\scalability\\spatial_mc\\scalability_runs.csv', '--figure-dir', 'C:\\Users\\guild\\Dropbox\\research\\code\\TSP_new_new\\TSP-FactorGraph\\figures\\scalability', '--max-rounds', '64', '--assignment-rounds', '1', '--damping', '0.7', '--tolerance', '0.001', '--improvement-tolerance', '1e-09', '--exact-global-limit', '14', '--maximum-exact-trellis-bins', '20', '--stagnation-patience', '8', '--oracle-slots', '3', '--hypercube-radii', '1', '2', '4', '8', '12', '16', '24', '32', '--no-canonicalize-vehicle-symmetry', '--no-symmetry-dual-path', '--global-assignment-trajectory', '--ga-population', '100', '--ga-generations', '500', '--pso-particles', '60', '--pso-iterations', '200', '--aco-ants', '60', '--aco-iterations', '150', '--resume']' returned non-zero exit status 4294967295.
