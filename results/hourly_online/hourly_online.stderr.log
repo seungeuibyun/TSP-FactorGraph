@@ -1,0 +1,37 @@
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\scripts\hourly_online.py", line 81, in <module>
+  File "C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\scripts\hourly_online.py", line 77, in main
+  File "C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\scripts\hourly_online.py", line 44, in run
+  File "C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\scripts\online.py", line 1221, in run
+  File "C:\Users\guild\.conda\envs\tsp\Lib\site-packages\pandas\core\generic.py", line 3988, in to_csv
+    return DataFrameRenderer(formatter).to_csv(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\guild\.conda\envs\tsp\Lib\site-packages\pandas\io\formats\format.py", line 1025, in to_csv
+    csv_formatter.save()
+  File "C:\Users\guild\.conda\envs\tsp\Lib\site-packages\pandas\io\formats\csvs.py", line 251, in save
+    with get_handle(
+         ^^^^^^^^^^^
+  File "C:\Users\guild\.conda\envs\tsp\Lib\site-packages\pandas\io\common.py", line 793, in get_handle
+    check_parent_directory(str(handle))
+  File "C:\Users\guild\.conda\envs\tsp\Lib\site-packages\pandas\io\common.py", line 651, in check_parent_directory
+    if not parent.is_dir():
+           ^^^^^^^^^^^^^^^
+  File "C:\Users\guild\.conda\envs\tsp\Lib\pathlib.py", line 875, in is_dir
+    return S_ISDIR(self.stat().st_mode)
+                   ^^^^^^^^^^^
+  File "C:\Users\guild\.conda\envs\tsp\Lib\pathlib.py", line 840, in stat
+    return os.stat(self, follow_symlinks=follow_symlinks)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [WinError 5] Access is denied: 'C:\\Users\\guild\\Dropbox\\research\\code\\TSP_new_new\\TSP-FactorGraph\\results\\hourly_online\\h11'
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\scripts\run_experiment.py", line 387, in <module>
+  File "C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\scripts\run_experiment.py", line 383, in main
+  File "C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\scripts\run_experiment.py", line 348, in run
+  File "C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\scripts\run_experiment.py", line 328, in _run
+  File "C:\Users\guild\.conda\envs\tsp\Lib\subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['C:\\Users\\guild\\.conda\\envs\\tsp\\python.exe', '-m', 'scripts.hourly_online', '--hours', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23', '--n-bins', '84', '--vehicles', '10', '--demand-seed', '7', '--solver-seed', '7', '--methods', 'proposed', 'nn', 'aco', 'pso', 'ga', '--max-simulation-minutes', '180.0', '--traffic-step-s', '60.0', '--replanning-interval-s', '300.0', '--output-dir', 'C:\\Users\\guild\\Dropbox\\research\\code\\TSP_new_new\\TSP-FactorGraph\\results\\hourly_online', '--figure-dir', 'C:\\Users\\guild\\Dropbox\\research\\code\\TSP_new_new\\TSP-FactorGraph\\figures\\hourly_online', '--max-rounds', '32', '--assignment-rounds', '24', '--damping', '0.5', '--tolerance', '0.001', '--oracle-slots', '2', '--resume']' returned non-zero exit status 1.

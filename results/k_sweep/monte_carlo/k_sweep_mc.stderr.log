@@ -1,0 +1,51 @@
+concurrent.futures.process._RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "C:\Users\guild\.conda\envs\tsp\Lib\concurrent\futures\process.py", line 264, in _process_worker
+    r = call_item.fn(*call_item.args, **call_item.kwargs)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\scripts\k_sweep_multiseed.py", line 200, in _instance_worker
+    _atomic_csv(pd.DataFrame(rows), shard_path)
+  File "C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\scripts\k_sweep_multiseed.py", line 66, in _atomic_csv
+    temporary.replace(path)
+  File "C:\Users\guild\.conda\envs\tsp\Lib\pathlib.py", line 1376, in replace
+    os.replace(self, target)
+PermissionError: [WinError 5] Access is denied: 'C:\\Users\\guild\\Dropbox\\research\\code\\TSP_new_new\\TSP-FactorGraph\\results\\k_sweep\\monte_carlo\\shards\\.s17_h04_k07.csv.53832.tmp' -> 'C:\\Users\\guild\\Dropbox\\research\\code\\TSP_new_new\\TSP-FactorGraph\\results\\k_sweep\\monte_carlo\\shards\\s17_h04_k07.csv'
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\scripts\k_sweep_multiseed.py", line 508, in <module>
+    main()
+  File "C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\scripts\k_sweep_multiseed.py", line 504, in main
+    run(build_parser().parse_args(arguments))
+  File "C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\scripts\k_sweep_multiseed.py", line 416, in run
+    incorporate(future.result())
+                ^^^^^^^^^^^^^^^
+  File "C:\Users\guild\.conda\envs\tsp\Lib\concurrent\futures\_base.py", line 449, in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\guild\.conda\envs\tsp\Lib\concurrent\futures\_base.py", line 401, in __get_result
+    raise self._exception
+PermissionError: [WinError None] Access is denied: 'C:\\Users\\guild\\Dropbox\\research\\code\\TSP_new_new\\TSP-FactorGraph\\results\\k_sweep\\monte_carlo\\shards\\.s17_h04_k07.csv.53832.tmp' -> 'C:\\Users\\guild\\Dropbox\\research\\code\\TSP_new_new\\TSP-FactorGraph\\results\\k_sweep\\monte_carlo\\shards\\s17_h04_k07.csv'
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\scripts\run_experiment.py", line 359, in <module>
+    manifest = {
+^^^^^^
+  File "C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\scripts\run_experiment.py", line 355, in main
+    for command in post:
+    ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\scripts\run_experiment.py", line 320, in run
+    "--input", str(output), "--output-dir", str(figures),
+            ~~~~~~~~~~~~~~~~~^~~~~
+  File "C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\scripts\run_experiment.py", line 301, in _run
+    sys.executable, "-m", "scripts.scalability",
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\guild\.conda\envs\tsp\Lib\subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['C:\\Users\\guild\\.conda\\envs\\tsp\\python.exe', '-m', 'scripts.k_sweep_multiseed', '--n-bins', '84', '--target-total-demand-kg', '11700.0', '--hours', '4', '11', '19', '--vehicles', '6', '7', '8', '9', '10', '11', '12', '13', '14', '--base-seeds', '7', '17', '27', '37', '47', '57', '67', '77', '87', '97', '--parallel-jobs', '3', '--methods', 'proposed', 'nn', 'aco', 'pso', 'ga', '--confidence-level', '0.95', '--bootstrap-draws', '2000', '--output', 'C:\\Users\\guild\\Dropbox\\research\\code\\TSP_new_new\\TSP-FactorGraph\\results\\k_sweep\\monte_carlo\\k_sweep_mc_runs.csv', '--figure-dir', 'C:\\Users\\guild\\Dropbox\\research\\code\\TSP_new_new\\TSP-FactorGraph\\figures\\k_sweep', '--max-rounds', '32', '--assignment-rounds', '24', '--damping', '0.5', '--tolerance', '0.001', '--improvement-tolerance', '1e-09', '--exact-global-limit', '14', '--maximum-exact-trellis-bins', '84', '--stagnation-patience', '8', '--oracle-slots', '3', '--hypercube-radii', '1', '2', '4', '8', '12', '16', '24', '32', '--ga-population', '100', '--ga-generations', '500', '--pso-particles', '60', '--pso-iterations', '200', '--aco-ants', '60', '--aco-iterations', '150', '--focus-seeds', '107', '117', '127', '137', '147', '157', '167', '177', '187', '197', '--focus-vehicles', '6', '7', '8', '--bootstrap-csv', 'C:\\Users\\guild\\Dropbox\\research\\code\\TSP_new_new\\TSP-FactorGraph\\results\\k_sweep\\k_sweep_3h_all_methods.csv', '--resume']' returned non-zero exit status 1.

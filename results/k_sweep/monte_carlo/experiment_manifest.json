@@ -1,0 +1,64 @@
+{
+  "n_bins": 84,
+  "target_total_demand_kg": 11700.0,
+  "hours": [
+    4,
+    11,
+    19
+  ],
+  "vehicles": [
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14
+  ],
+  "base_seeds": [
+    7,
+    17,
+    27,
+    37,
+    47,
+    57,
+    67,
+    77,
+    87,
+    97
+  ],
+  "focus_seeds": [
+    107,
+    117,
+    127,
+    137,
+    147,
+    157,
+    167,
+    177,
+    187,
+    197
+  ],
+  "focus_vehicles": [
+    6,
+    7,
+    8
+  ],
+  "methods": [
+    "proposed",
+    "nn",
+    "aco",
+    "pso",
+    "ga"
+  ],
+  "parallel_jobs": 3,
+  "confidence_level": 0.95,
+  "bootstrap_draws": 2000,
+  "expected_instances": 360,
+  "expected_runs": 1800,
+  "completed_runs": 1800,
+  "complete": true,
+  "bootstrap_csv": "C:\\Users\\guild\\Dropbox\\research\\code\\TSP_new_new\\TSP-FactorGraph\\results\\k_sweep\\k_sweep_3h_all_methods.csv"
+}

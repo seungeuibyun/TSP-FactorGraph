@@ -3,3 +3,5 @@ simul/seongbuk_buffer_elevation.net.xml filter=lfs diff=lfs merge=lfs -text
 *.dbf filter=lfs diff=lfs merge=lfs -text
 *.net.xml filter=lfs diff=lfs merge=lfs -text
 simul/archive/preprocessing/sumo_hourly_cost_*.csv filter=lfs diff=lfs merge=lfs -text
+results/hourly_online/*/traffic_trace.json filter=lfs diff=lfs merge=lfs -text
+results/traffic_build/weekend_20260905/sumo_hourly_cost_full_network_v3.csv filter=lfs diff=lfs merge=lfs -text

@@ -1,0 +1,22 @@
+{
+  "dates": [
+    "20260905",
+    "20260906"
+  ],
+  "weekdays": [
+    "일",
+    "토"
+  ],
+  "source": "C:\\Users\\guild\\Downloads\\2026년 9월 서울시 차량통행속도.xlsx",
+  "source_sha256": "9d1ecf2f7c95bcebd82b412723790e607c0cdc9b0afd106781c25fad997e6da3",
+  "pipeline": [
+    "20_build_piecewise_observed_cost.py",
+    "21_build_full_network_cost_v3.py",
+    "operational_edge_list_v3.csv subset"
+  ],
+  "output": "simul\\traffic\\weekend_20260905\\sumo_hourly_cost_operational_weekend_20260905-20260906.csv",
+  "qc": "simul\\traffic\\weekend_20260905\\weekend_traffic_qc_20260905-20260906.csv",
+  "operational_edges": 39882,
+  "aggregation": "arithmetic mean speed by TOPIS link and hour",
+  "note": "Observed Saturday-Sunday weekend profile."
+}

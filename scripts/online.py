@@ -75,6 +75,14 @@ class RuntimeVehicleState:
     pending_path: tuple[str, ...] = ()
 
 
+def _apply_traffic_epoch(network, traffic: TrafficEpoch,
+                         sim_time_s: float) -> None:
+    if traffic.state == "hourly_linear":
+        network.set_hourly_linear_interpolation(sim_time_s)
+    else:
+        network.set_travel_time_multipliers(traffic.multipliers)
+
+
 def _radius_edges(network, center_node: str, radius_m: float
                   ) -> dict[str, float]:
     """Return directed edges whose midpoint is within a road-distance radius."""
@@ -218,6 +226,45 @@ def generate_traffic_trace(instance: PaperInstance, steps: int, seed: int,
             multipliers=multipliers,
         ))
         previous_state = state
+    return trace
+
+
+def generate_hourly_linear_trace(
+        instance: PaperInstance, steps: int, traffic_step_s: float = 60.0,
+        ) -> list[TrafficEpoch]:
+    """Interpolate the measured hourly edge travel times on a 24 h clock.
+
+    The observation for hour ``h`` is anchored at exactly ``h:00``.  Between
+    two observations, every directed edge travel time is linearly
+    interpolated; 23:00 is joined cyclically to 00:00 of the next day.  The
+    returned multipliers are relative to the active integer-hour table so the
+    existing online execution and oracle code can consume the continuous
+    traffic state without changing its physical energy model.
+    """
+
+    if steps < 1:
+        raise ValueError("traffic steps must be positive")
+    if traffic_step_s <= 0.0:
+        raise ValueError("traffic step must be positive")
+    trace: list[TrafficEpoch] = []
+    for epoch in range(steps):
+        elapsed_s = float(epoch) * float(traffic_step_s)
+        absolute_s = (float(instance.start_time_s) + elapsed_s) % 86400.0
+        hour = int(absolute_s // 3600.0)
+        alpha = (absolute_s - hour * 3600.0) / 3600.0
+        trace.append(TrafficEpoch(
+            epoch=epoch,
+            elapsed_s=elapsed_s,
+            state="hourly_linear",
+            change="interpolating",
+            center_bins=(),
+            peak_multiplier=1.0,
+            speed_multiplier=1.0,
+            recovery_progress=float(alpha),
+            region_edges=tuple(instance.network.edge_data),
+            affected_edges=(),
+            multipliers={},
+        ))
     return trace
 
 
@@ -659,7 +706,8 @@ def _complete_returns(
                 int((sim_time_s - base.start_time_s + elapsed)
                     // traffic_step_s), len(trace) - 1)
             traffic = trace[trace_index]
-            base.network.set_travel_time_multipliers(traffic.multipliers)
+            _apply_traffic_epoch(
+                base.network, traffic, sim_time_s + elapsed)
             if not pending:
                 path, _, _ = base.network.shortest_path(
                     state.node, base.depot_node, sim_time_s + elapsed,
@@ -714,8 +762,8 @@ def _simulate_policy(base: PaperInstance, method: str, policy: str,
     for traffic in trace:
         if not remaining:
             break
-        base.network.set_travel_time_multipliers(traffic.multipliers)
         sim_time_s = base.start_time_s + traffic.elapsed_s
+        _apply_traffic_epoch(base.network, traffic, sim_time_s)
         if not use_frozen_paths:
             for runtime_state in runtime_states:
                 runtime_state.pending_path = ()
@@ -850,7 +898,7 @@ def _simulate_policy(base: PaperInstance, method: str, policy: str,
             cumulative_operating_s += returns["makespan_s"]
         cumulative_planning_s += planning_runtime
         hour = int(sim_time_s // 3600.0) % 24
-        base.network.set_travel_time_multipliers(traffic.multipliers)
+        _apply_traffic_epoch(base.network, traffic, sim_time_s)
         network_speed = base.network.hourly_network_speed_kmh(hour)
         row = {
             "method": method,
@@ -933,8 +981,8 @@ def _scenario_records(base: PaperInstance,
     rows = []
     previous_speed = None
     for traffic in trace:
-        base.network.set_travel_time_multipliers(traffic.multipliers)
         sim_time_s = base.start_time_s + traffic.elapsed_s
+        _apply_traffic_epoch(base.network, traffic, sim_time_s)
         hour = int(sim_time_s // 3600.0) % 24
         speed = base.network.hourly_network_speed_kmh(hour)
         region_distance = sum(
@@ -1027,7 +1075,7 @@ def _summary(frame: pd.DataFrame) -> pd.DataFrame:
             ("static_frozen", static_frozen_energy)):
         summary[f"adaptive_vs_{reference}_gain_pct"] = [
             (100.0 * (values[method] - energy) / values[method])
-            if policy == "adaptive" else 0.0
+            if policy == "adaptive" and method in values.index else np.nan
             for method, policy, energy in zip(
                 summary["method"], summary["policy"],
                 summary["cumulative_energy_kwh"])
@@ -1076,19 +1124,23 @@ def run(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame]:
             "traffic step")
     steps = int(np.ceil(
         args.max_simulation_minutes * 60.0 / args.traffic_step_s)) + 1
-    trace = generate_traffic_trace(
-        base, steps, args.traffic_seed,
-        args.disruption_fraction, args.disruption_radius_m,
-        args.minimum_speed_factor, args.traffic_step_s,
-        args.disruption_delay_minutes * 60.0,
-        args.degradation_minutes * 60.0,
-        args.disruption_hold_minutes * 60.0,
-        args.recovery_minutes * 60.0)
+    if args.traffic_model == "hourly_linear":
+        trace = generate_hourly_linear_trace(
+            base, steps, args.traffic_step_s)
+    else:
+        trace = generate_traffic_trace(
+            base, steps, args.traffic_seed,
+            args.disruption_fraction, args.disruption_radius_m,
+            args.minimum_speed_factor, args.traffic_step_s,
+            args.disruption_delay_minutes * 60.0,
+            args.degradation_minutes * 60.0,
+            args.disruption_hold_minutes * 60.0,
+            args.recovery_minutes * 60.0)
     scenario = pd.DataFrame(_scenario_records(base, trace))
     scenario.to_csv(output_dir / "traffic_trace.csv", index=False)
     exact_trace = {
         "traffic_seed": args.traffic_seed,
-        "traffic_model": "wall_clock_delayed_gradual_disruption",
+        "traffic_model": args.traffic_model,
         "maximum_simulation_s": args.max_simulation_minutes * 60.0,
         "disruption_fraction": args.disruption_fraction,
         "disruption_radius_m": args.disruption_radius_m,
@@ -1119,7 +1171,7 @@ def run(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame]:
             args.initial_plan_cache.resolve().read_text(encoding="utf-8"))
     saved_initial_plans: dict[str, dict] = {}
     for method in args.methods:
-        base.network.set_travel_time_multipliers(trace[0].multipliers)
+        _apply_traffic_epoch(base.network, trace[0], base.start_time_s)
         if method in initial_cache:
             cached = initial_cache[method]
             initial_routes = [list(route) for route in cached["routes"]]
@@ -1160,7 +1212,7 @@ def run(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame]:
         (output_dir / "initial_plans.json").write_text(
             json.dumps(saved_initial_plans, indent=2, ensure_ascii=False),
             encoding="utf-8")
-        for policy in POLICIES:
+        for policy in args.policies:
             rows = _simulate_policy(
                 base, method, policy, trace, initial_routes,
                 initial_solver, initial_oracle,
@@ -1190,7 +1242,7 @@ def run(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame]:
         "max_simulation_minutes": args.max_simulation_minutes,
         "traffic_step_s": args.traffic_step_s,
         "replanning_interval_s": args.replanning_interval_s,
-        "traffic_model": "wall_clock_delayed_gradual_disruption",
+        "traffic_model": args.traffic_model,
         "disruption_fraction": args.disruption_fraction,
         "disruption_radius_m": args.disruption_radius_m,
         "minimum_speed_factor": args.minimum_speed_factor,
@@ -1199,7 +1251,7 @@ def run(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame]:
         "disruption_hold_s": args.disruption_hold_minutes * 60.0,
         "recovery_s": args.recovery_minutes * 60.0,
         "methods": list(args.methods),
-        "policies": list(POLICIES),
+        "policies": list(args.policies),
         "residual_nonempty_rule": (
             "V_k remains nonempty only until physical vehicle k has served "
             "its first bin; already-used vehicles may be empty later"),
@@ -1242,6 +1294,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-simulation-minutes", type=float, default=120.0)
     parser.add_argument("--traffic-step-s", type=float, default=60.0)
     parser.add_argument("--replanning-interval-s", type=float, default=300.0)
+    parser.add_argument(
+        "--traffic-model",
+        choices=("wall_clock_delayed_gradual_disruption", "hourly_linear"),
+        default="wall_clock_delayed_gradual_disruption",
+        help=("localized delayed disruption or cyclic linear interpolation "
+              "of the 24 measured hourly traffic states"))
     parser.add_argument("--disruption-fraction", type=float, default=0.05)
     parser.add_argument("--disruption-radius-m", type=float, default=500.0)
     parser.add_argument("--minimum-speed-factor", type=float, default=0.35)
@@ -1258,6 +1316,8 @@ def build_parser() -> argparse.ArgumentParser:
               "terminal-policy rerun without repeating epoch zero"))
     parser.add_argument(
         "--methods", nargs="+", choices=METHODS, default=list(METHODS))
+    parser.add_argument(
+        "--policies", nargs="+", choices=POLICIES, default=list(POLICIES))
     parser.add_argument("--oracle-slots", type=int, default=2)
     parser.add_argument("--ga-population", type=int, default=100)
     parser.add_argument("--ga-generations", type=int, default=500)

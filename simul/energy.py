@@ -746,6 +746,30 @@ class OperationalEnergyNetwork:
         self._travel_time_multipliers = normalized
         self.clear_path_cache()
 
+    def set_hourly_linear_interpolation(self, sim_time_s: float) -> None:
+        """Set edge travel times by cyclic interpolation of hourly records."""
+
+        absolute_s = float(sim_time_s) % 86400.0
+        hour = int(absolute_s // 3600.0)
+        alpha = (absolute_s - hour * 3600.0) / 3600.0
+        next_hour = (hour + 1) % 24
+        signature = {"__hourly_linear_time_s__": absolute_s}
+        if signature == self._travel_time_multipliers:
+            return
+        for edge_id, values in tuple(self.edge_data.items()):
+            target, length, grade, _, free_speed = values
+            baseline = self._baseline_hourly_tt[edge_id]
+            current = float(baseline[hour])
+            following = float(baseline[next_hour])
+            interpolated = (1.0 - alpha) * current + alpha * following
+            freeflow_time = length / free_speed if free_speed > 0.0 else 0.0
+            hourly_tt = list(baseline)
+            hourly_tt[hour] = max(freeflow_time, interpolated)
+            self.edge_data[edge_id] = (
+                target, length, grade, tuple(hourly_tt), free_speed)
+        self._travel_time_multipliers = signature
+        self.clear_path_cache()
+
     @property
     def travel_time_multipliers(self) -> dict[str, float]:
         """Return a copy of the currently applied online traffic factors."""

@@ -19,9 +19,12 @@ def _load(path: Path) -> dict:
     if config.get("schema_version") != 1:
         raise ValueError("config schema_version must be 1")
     if config.get("experiment") not in {
-            "k_sweep", "hourly_24h", "online", "scalability"}:
+            "k_sweep", "k_sweep_mc", "hourly_24h", "hourly_online", "online",
+            "scalability"}:
         raise ValueError(
-            "experiment must be k_sweep, hourly_24h, online, or scalability")
+            "experiment must be k_sweep, k_sweep_mc, hourly_24h, "
+            "hourly_online, online, "
+            "or scalability")
     return config
 
 
@@ -138,6 +141,61 @@ def _k_sweep_pipeline(config: dict) -> tuple[list[list[str]], list[list[str]]]:
     return primary, [aggregate, plot]
 
 
+def _k_sweep_mc_pipeline(
+        config: dict) -> tuple[list[list[str]], list[list[str]]]:
+    instance = config["instance"]
+    monte_carlo = config.get("monte_carlo", {})
+    results = _output_path(config["output"]["results"], "results")
+    figures = _output_path(config["output"]["figures"], "figures")
+    output = results / config["output"].get(
+        "csv", "k_sweep_mc_runs.csv")
+    command = [
+        sys.executable, "-m", "scripts.k_sweep_multiseed",
+        "--n-bins", str(instance["n_bins"]),
+        "--target-total-demand-kg",
+        str(instance["target_total_demand_kg"]),
+        "--hours", *map(str, instance["hours"]),
+        "--vehicles", *map(str, instance["vehicles"]),
+        "--base-seeds", *map(str, instance["base_seeds"]),
+        "--parallel-jobs", str(max(
+            1, int(config.get("execution", {}).get("parallel_jobs", 1)))),
+        "--methods", *config["methods"],
+        "--confidence-level", str(
+            monte_carlo.get("confidence_level", 0.95)),
+        "--bootstrap-draws", str(
+            monte_carlo.get("bootstrap_draws", 2000)),
+        "--output", str(output),
+        "--figure-dir", str(figures),
+        *_solver_arguments(config),
+        *_baseline_arguments(config),
+    ]
+    focus_seeds = instance.get("focus_seeds", [])
+    if focus_seeds:
+        command.extend(["--focus-seeds", *map(str, focus_seeds)])
+    focus_vehicles = instance.get("focus_vehicles", [])
+    if focus_vehicles:
+        command.extend(["--focus-vehicles", *map(str, focus_vehicles)])
+    bootstrap_csv = instance.get("bootstrap_csv")
+    if bootstrap_csv:
+        command.extend([
+            "--bootstrap-csv",
+            str((PROJECT_ROOT / bootstrap_csv).resolve()),
+        ])
+    if config.get("resume", True):
+        command.append("--resume")
+    plot = [
+        sys.executable, "-m", "scripts.plotting.k_sweep_multiseed",
+        "--input", str(output),
+        "--output-dir", str(figures),
+        "--vehicles", *map(str, instance["vehicles"]),
+        "--confidence-level", str(
+            monte_carlo.get("confidence_level", 0.95)),
+        "--bootstrap-draws", str(
+            monte_carlo.get("bootstrap_draws", 2000)),
+    ]
+    return [command], [plot]
+
+
 def _hourly_pipeline(config: dict) -> tuple[list[list[str]], list[list[str]]]:
     instance = config["instance"]
     results = _output_path(config["output"]["results"], "results")
@@ -207,6 +265,34 @@ def _online_pipeline(config: dict) -> tuple[list[list[str]], list[list[str]]]:
     return [command], [plot]
 
 
+def _hourly_online_pipeline(
+        config: dict) -> tuple[list[list[str]], list[list[str]]]:
+    instance = config["instance"]
+    traffic = config["traffic"]
+    results = _output_path(config["output"]["results"], "results")
+    figures = _output_path(config["output"]["figures"], "figures")
+    command = [
+        sys.executable, "-m", "scripts.hourly_online",
+        "--hours", *map(str, instance["hours"]),
+        "--n-bins", str(instance["n_bins"]),
+        "--vehicles", str(instance["vehicles"]),
+        "--demand-seed", str(instance["demand_seed"]),
+        "--solver-seed", str(instance["solver_seed"]),
+        "--methods", *config["methods"],
+        "--max-simulation-minutes", str(traffic["max_simulation_minutes"]),
+        "--traffic-step-s", str(traffic["traffic_step_s"]),
+        "--replanning-interval-s", str(traffic["replanning_interval_s"]),
+        "--parallel-jobs", str(max(
+            1, int(config.get("execution", {}).get("parallel_jobs", 1)))),
+        "--output-dir", str(results),
+        "--figure-dir", str(figures),
+        *_solver_arguments(config),
+    ]
+    if config.get("resume", True):
+        command.append("--resume")
+    return [command], []
+
+
 def _scalability_pipeline(
         config: dict) -> tuple[list[list[str]], list[list[str]]]:
     instance = config["instance"]
@@ -250,7 +336,9 @@ def run(config_path: Path, dry_run: bool = False,
     config = _load(config_path)
     builders = {
         "k_sweep": _k_sweep_pipeline,
+        "k_sweep_mc": _k_sweep_mc_pipeline,
         "hourly_24h": _hourly_pipeline,
+        "hourly_online": _hourly_online_pipeline,
         "online": _online_pipeline,
         "scalability": _scalability_pipeline,
     }

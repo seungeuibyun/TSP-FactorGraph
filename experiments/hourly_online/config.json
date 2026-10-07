@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "experiment": "hourly_online",
+  "description": "Online proposed and baseline methods from every start hour under linearly interpolated daily traffic.",
+  "instance": {
+    "n_bins": 84,
+    "vehicles": 10,
+    "demand_seed": 7,
+    "solver_seed": 7,
+    "hours": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]
+  },
+  "methods": ["proposed", "nn", "aco", "pso", "ga"],
+  "traffic": {
+    "model": "hourly_linear",
+    "max_simulation_minutes": 180.0,
+    "traffic_step_s": 60.0,
+    "replanning_interval_s": 300.0
+  },
+  "solver": {
+    "max_rounds": 32,
+    "assignment_rounds": 24,
+    "damping": 0.5,
+    "tolerance": 0.001,
+    "oracle_slots": 2
+  },
+  "execution": {"parallel_jobs": 3},
+  "resume": true,
+  "output": {
+    "results": "results/hourly_online",
+    "figures": "figures/hourly_online"
+  }
+}

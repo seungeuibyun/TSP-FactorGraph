@@ -1,0 +1,41 @@
+{
+  "source": "results/k_sweep/monte_carlo/k_sweep_mc_runs.csv",
+  "observations": 1800,
+  "vehicles": [
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14
+  ],
+  "methods": [
+    "proposed",
+    "nn",
+    "aco",
+    "pso",
+    "ga"
+  ],
+  "demand_seeds_by_k": {
+    "6": 20,
+    "7": 20,
+    "8": 20,
+    "9": 10,
+    "10": 10,
+    "11": 10,
+    "12": 10,
+    "13": 10,
+    "14": 10
+  },
+  "confidence_level": 0.95,
+  "bootstrap_draws": 2000,
+  "uncertainty_unit": "demand seed after averaging the currently completed traffic hours within each seed",
+  "relative_metric": "100 * (baseline metric / proposed metric - 1), paired by K, demand seed, and traffic hour before seed-level averaging",
+  "formats": [
+    "PDF",
+    "PNG"
+  ]
+}

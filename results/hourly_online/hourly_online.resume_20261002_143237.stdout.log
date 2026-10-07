@@ -1,0 +1,21 @@
+RUN C:\Users\guild\.conda\envs\tsp\python.exe -m scripts.hourly_online --hours 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 --n-bins 84 --vehicles 10 --demand-seed 7 --solver-seed 7 --methods proposed nn aco pso ga --max-simulation-minutes 180.0 --traffic-step-s 60.0 --replanning-interval-s 300.0 --output-dir C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\results\hourly_online --figure-dir C:\Users\guild\Dropbox\research\code\TSP_new_new\TSP-FactorGraph\figures\hourly_online --max-rounds 32 --assignment-rounds 24 --damping 0.5 --tolerance 0.001 --oracle-slots 2 --resume
+REUSE start hour 00
+REUSE start hour 01
+REUSE start hour 02
+REUSE start hour 03
+REUSE start hour 04
+REUSE start hour 05
+REUSE start hour 06
+REUSE start hour 07
+REUSE start hour 08
+REUSE start hour 09
+REUSE start hour 10
+DONE proposed/adaptive: E=165.792 kWh, T=3223.8 s, planning=2733.6 s
+DONE nn/adaptive: E=205.634 kWh, T=3193.3 s, planning=132.8 s
+DONE aco/adaptive: E=170.916 kWh, T=3273.6 s, planning=870.0 s
+DONE pso/adaptive: E=196.243 kWh, T=3457.0 s, planning=2625.4 s
+DONE ga/adaptive: E=189.400 kWh, T=3046.4 s, planning=3952.4 s
+DONE proposed/adaptive: E=166.983 kWh, T=3021.2 s, planning=1861.2 s
+DONE nn/adaptive: E=205.595 kWh, T=3605.2 s, planning=113.7 s
+DONE aco/adaptive: E=166.663 kWh, T=4035.2 s, planning=894.4 s
+DONE pso/adaptive: E=200.362 kWh, T=3568.3 s, planning=2434.2 s

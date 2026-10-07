@@ -148,6 +148,77 @@ def _split_boundaries(segment_cost: np.ndarray,
     return boundaries
 
 
+def _capacity_repair_nn(instance: PaperInstance,
+                        started: float) -> SolverResult:
+    """Deterministic best-fit repair followed by within-route NN ordering."""
+
+    routes = [[] for _ in range(instance.vehicles)]
+    remaining_capacity = np.asarray([
+        instance.capacity_kg - state.payload_kg
+        for state in instance.vehicle_states
+    ], float)
+    required = set(np.flatnonzero(instance.nonempty_required).tolist())
+    order = sorted(
+        range(instance.n_bins),
+        key=lambda index: (-float(instance.demand_kg[index]),
+                           -float(instance.urgency[index]), int(index)),
+    )
+    for index in order:
+        demand = float(instance.demand_kg[index])
+        feasible = [
+            vehicle for vehicle in range(instance.vehicles)
+            if remaining_capacity[vehicle] + 1e-9 >= demand
+        ]
+        if not feasible:
+            raise RuntimeError("NN capacity repair found no feasible packing")
+        empty_required = [vehicle for vehicle in feasible if vehicle in required]
+        candidates = empty_required or feasible
+        vehicle = min(
+            candidates,
+            key=lambda value: (
+                remaining_capacity[value] - demand, len(routes[value]), value),
+        )
+        routes[vehicle].append(index)
+        remaining_capacity[vehicle] -= demand
+        required.discard(vehicle)
+    if required:
+        raise RuntimeError("NN capacity repair left a required vehicle empty")
+
+    ordered_routes: list[list[int]] = []
+    for vehicle, assigned in enumerate(routes):
+        node = instance.vehicle_states[vehicle].node
+        payload = float(instance.vehicle_states[vehicle].payload_kg)
+        elapsed = 0.0
+        remaining = set(assigned)
+        route: list[int] = []
+        while remaining:
+            transitions = transition_costs(
+                instance.network, node,
+                [instance.bin_nodes[index] for index in remaining],
+                instance.start_time_s + elapsed, payload)
+            index = min(
+                remaining,
+                key=lambda value: (
+                    float(transitions[instance.bin_nodes[value]][0]),
+                    -float(instance.urgency[value]), int(value)),
+            )
+            edge_energy, edge_time = transitions[instance.bin_nodes[index]]
+            del edge_energy
+            route.append(index)
+            node = instance.bin_nodes[index]
+            payload += float(instance.demand_kg[index])
+            elapsed += float(edge_time) + float(instance.network.params.service_time_s)
+            remaining.remove(index)
+        ordered_routes.append(route)
+
+    evaluation = evaluate_routes(instance, ordered_routes)
+    if not evaluation.feasible:
+        raise RuntimeError("NN capacity repair produced an infeasible route set")
+    return SolverResult(
+        "nn", ordered_routes, evaluation, time.perf_counter() - started,
+        metadata={"capacity_repair": "best_fit_decreasing"})
+
+
 def solve_nn(instance: PaperInstance) -> SolverResult:
     """State-aware constrained nearest-neighbor fleet construction."""
 
@@ -198,7 +269,7 @@ def solve_nn(instance: PaperInstance) -> SolverResult:
                 if best is None or key < best:
                     best = key
         if best is None:
-            raise RuntimeError("NN found no constraint-feasible exact cover")
+            return _capacity_repair_nn(instance, started)
         incremental_energy, _, vehicle, index, incremental_time = best
         routes[vehicle].append(index)
         nodes[vehicle] = instance.bin_nodes[index]

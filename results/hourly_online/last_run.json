@@ -1,0 +1,7 @@
+{
+  "config": "experiments\\hourly_online\\config.json",
+  "experiment": "hourly_online",
+  "completed_utc": "2026-10-03T00:36:30.753087+00:00",
+  "figures_only": false,
+  "parallel_jobs": 3
+}
